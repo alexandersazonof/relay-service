@@ -1,4 +1,5 @@
-export { abi } from './abi';
-export { abiErrors } from './abiErrors';
-export { abiRelay } from './abiRelay';
-export { sacraRelayAddress, heroContractAddress } from './addresses';
+export { abiHero } from './abi-hero';
+export { abiErrors } from './abi-errors';
+export { abiRelay } from './abi-relay';
+export * from './contract-address';
+// export { sacraRelayAddress, heroContractAddress } from './addresses';

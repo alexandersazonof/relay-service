@@ -2,6 +2,7 @@ import { Controller, Get, Post, HttpCode, HttpStatus, Body, Query } from '@nestj
 import { RelayService } from './relay.service';
 import { CallFromDelegatorDto } from './dto/call-from-delegator.dto';
 import { GetContractErrorNameDto } from './dto/get-contract-error-name.dto';
+import { CallFromOperatorDto } from './dto/call-from-operator.dto';
 
 @Controller('relay')
 export class RelayController {
@@ -17,5 +18,11 @@ export class RelayController {
   @HttpCode(HttpStatus.OK)
   callFromDelegator(@Body() callFromDelegatorDto: CallFromDelegatorDto) {
     return this.relayService.callFromDelegator(callFromDelegatorDto);
+  }
+
+  @Post('/call-from-operator')
+  @HttpCode(HttpStatus.OK)
+  callFromOperator(@Body() callFromOperatorDto: CallFromOperatorDto) {
+    return this.relayService.callFromOperator(callFromOperatorDto);
   }
 }
