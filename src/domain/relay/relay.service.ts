@@ -4,11 +4,11 @@ import { AbiItem, Contract } from 'web3';
 import { AbiErrorFragment } from 'web3-types/src/eth_abi_types';
 import { keccak256 } from 'js-sha3';
 import { Web3Service } from 'src/domain/web3/web3.service';
-import { abiErrors, ContractAddress, abiRelay, abiHero } from './constants';
+import { abiErrors, abiRelay, abiHero, ContractAddress } from './constants';
 import { CallFromDelegatorDto } from './dto/call-from-delegator.dto';
 import { GetContractErrorNameDto } from './dto/get-contract-error-name.dto';
-import { IContractErrorData } from './interfaces/contract-error-data.interface';
 import { CallFromOperatorDto } from './dto/call-from-operator.dto';
+import { IContractErrorData } from './interfaces/contract-error-data.interface';
 
 @Injectable()
 export class RelayService {
@@ -31,8 +31,6 @@ export class RelayService {
   }
 
   async getContractErrorNameByHex(getContractErrorNameDto: GetContractErrorNameDto) {
-    console.log(getContractErrorNameDto);
-
     const errors = abiErrors
       .map((abiError) => {
         if (!abiError.inputs) return null;
@@ -59,11 +57,7 @@ export class RelayService {
   }
 
   async callFromDelegator(callFromDelegatorDto: CallFromDelegatorDto) {
-    if (!(<string[]>Object.values(ContractAddress)).includes(callFromDelegatorDto.target)) {
-      throw new InternalServerErrorException(
-        `Contract address ${callFromDelegatorDto.target} not allowed`,
-      );
-    }
+    this.checkKnownContractAddress(callFromDelegatorDto.target);
 
     const callInfo = {
       chainId: 250,
@@ -73,11 +67,8 @@ export class RelayService {
       userNonce: 1,
       userDeadline: 0,
     };
-    console.log('callInfo:', callInfo);
 
     const transactionData = this.sacraRelayContract.methods.callFromDelegator(callInfo).encodeABI();
-    console.log('transactionData:', transactionData);
-
     const gas = await this.web3Service.instance.eth.estimateGas({
       from: this.web3Service.masterAccountAddress,
       to: ContractAddress.Relay,
@@ -85,7 +76,6 @@ export class RelayService {
     });
 
     const gasPrice = await this.web3Service.instance.eth.getGasPrice();
-
     const tx = {
       from: this.web3Service.masterAccountAddress,
       to: ContractAddress.Relay,
@@ -93,31 +83,23 @@ export class RelayService {
       gasPrice: gasPrice,
       data: transactionData,
     };
-    console.log('tx:', tx);
 
     const signedTx = await this.web3Service.instance.eth.accounts.signTransaction(
       tx,
       this.web3Service.masterAccountPrivateKey,
     );
-    console.log('signedTx:', signedTx);
-
-    if (signedTx.rawTransaction) {
-      const receipt = await this.web3Service.instance.eth.sendSignedTransaction(
-        signedTx.rawTransaction,
-      );
-
-      return { success: true };
-    } else {
-      return { success: false, message: 'Signing failed' };
+    if (!signedTx.rawTransaction) {
+      throw new InternalServerErrorException(`Signing failed`);
     }
+
+    const receipt = await this.web3Service.instance.eth.sendSignedTransaction(
+      signedTx.rawTransaction,
+    );
+    return { success: true };
   }
 
   async callFromOperator(callFromOperatorDto: CallFromOperatorDto) {
-    if (!(<string[]>Object.values(ContractAddress)).includes(callFromOperatorDto.target)) {
-      throw new InternalServerErrorException(
-        `Contract address ${callFromOperatorDto.target} not allowed`,
-      );
-    }
+    this.checkKnownContractAddress(callFromOperatorDto.target);
 
     const callInfo = {
       chainId: 250,
@@ -127,13 +109,10 @@ export class RelayService {
       userNonce: 1,
       userDeadline: 0,
     };
-    console.log('callInfo:', callInfo);
 
     const transactionData = this.sacraRelayContract.methods
       .callFromOperator(callInfo, callFromOperatorDto.signature)
       .encodeABI();
-    console.log('transactionData:', transactionData);
-
     const gas = await this.web3Service.instance.eth.estimateGas({
       from: this.web3Service.masterAccountAddress,
       to: ContractAddress.Relay,
@@ -141,7 +120,6 @@ export class RelayService {
     });
 
     const gasPrice = await this.web3Service.instance.eth.getGasPrice();
-
     const tx = {
       from: this.web3Service.masterAccountAddress,
       to: ContractAddress.Relay,
@@ -149,23 +127,19 @@ export class RelayService {
       gasPrice: gasPrice,
       data: transactionData,
     };
-    console.log('tx:', tx);
 
     const signedTx = await this.web3Service.instance.eth.accounts.signTransaction(
       tx,
       this.web3Service.masterAccountPrivateKey,
     );
-    console.log('signedTx:', signedTx);
-
-    if (signedTx.rawTransaction) {
-      const receipt = await this.web3Service.instance.eth.sendSignedTransaction(
-        signedTx.rawTransaction,
-      );
-
-      return { success: true };
-    } else {
-      return { success: false, message: 'Signing failed' };
+    if (!signedTx.rawTransaction) {
+      throw new InternalServerErrorException(`Signing failed`);
     }
+
+    const receipt = await this.web3Service.instance.eth.sendSignedTransaction(
+      signedTx.rawTransaction,
+    );
+    return { success: true };
   }
 
   // async create() {
@@ -207,4 +181,12 @@ export class RelayService {
   // }
 
   // new this.web3Service.instance.eth.abi.encode
+
+  private checkKnownContractAddress(address: string) {
+    const contracts = Object.values<string>(ContractAddress);
+    const isKnownContactAddress = contracts.includes(address);
+    if (!isKnownContactAddress) {
+      throw new InternalServerErrorException(`Contract address ${address} not allowed`);
+    }
+  }
 }
