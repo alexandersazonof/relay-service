@@ -1,6 +1,6 @@
 import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { AbiItem, Contract } from 'web3';
+import { AbiItem, Contract, Transaction } from 'web3';
 import { AbiErrorFragment } from 'web3-types/src/eth_abi_types';
 import { keccak256 } from 'js-sha3';
 import { Web3Service } from 'src/domain/web3/web3.service';
@@ -9,6 +9,314 @@ import { CallFromDelegatorDto } from './dto/call-from-delegator.dto';
 import { GetContractErrorNameDto } from './dto/get-contract-error-name.dto';
 import { CallFromOperatorDto } from './dto/call-from-operator.dto';
 import { IContractErrorData } from './interfaces/contract-error-data.interface';
+import { secp256k1 } from 'ethereum-cryptography/secp256k1.js';
+import { bytesToHex } from 'web3-utils';
+
+const testAbi = [
+  {
+    inputs: [],
+    stateMutability: 'nonpayable',
+    type: 'constructor',
+  },
+  {
+    inputs: [],
+    name: 'CALL_ERC2771_TYPEHASH',
+    outputs: [
+      {
+        internalType: 'bytes32',
+        name: '',
+        type: 'bytes32',
+      },
+    ],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'DOMAIN_SEPARATOR',
+    outputs: [
+      {
+        internalType: 'bytes32',
+        name: '',
+        type: 'bytes32',
+      },
+    ],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'NAME',
+    outputs: [
+      {
+        internalType: 'string',
+        name: '',
+        type: 'string',
+      },
+    ],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'VERSION',
+    outputs: [
+      {
+        internalType: 'string',
+        name: '',
+        type: 'string',
+      },
+    ],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [
+      {
+        components: [
+          {
+            internalType: 'uint256',
+            name: 'chainId',
+            type: 'uint256',
+          },
+          {
+            internalType: 'address',
+            name: 'target',
+            type: 'address',
+          },
+          {
+            internalType: 'bytes',
+            name: 'data',
+            type: 'bytes',
+          },
+          {
+            internalType: 'address',
+            name: 'user',
+            type: 'address',
+          },
+          {
+            internalType: 'uint256',
+            name: 'userNonce',
+            type: 'uint256',
+          },
+          {
+            internalType: 'uint256',
+            name: 'userDeadline',
+            type: 'uint256',
+          },
+        ],
+        internalType: 'struct Test.CallWithERC2771',
+        name: 'callInfo',
+        type: 'tuple',
+      },
+    ],
+    name: '_abiEncodeCallERC2771',
+    outputs: [
+      {
+        internalType: 'bytes',
+        name: '',
+        type: 'bytes',
+      },
+    ],
+    stateMutability: 'pure',
+    type: 'function',
+  },
+  {
+    inputs: [
+      {
+        components: [
+          {
+            internalType: 'uint256',
+            name: 'chainId',
+            type: 'uint256',
+          },
+          {
+            internalType: 'address',
+            name: 'target',
+            type: 'address',
+          },
+          {
+            internalType: 'bytes',
+            name: 'data',
+            type: 'bytes',
+          },
+          {
+            internalType: 'address',
+            name: 'user',
+            type: 'address',
+          },
+          {
+            internalType: 'uint256',
+            name: 'userNonce',
+            type: 'uint256',
+          },
+          {
+            internalType: 'uint256',
+            name: 'userDeadline',
+            type: 'uint256',
+          },
+        ],
+        internalType: 'struct Test.CallWithERC2771',
+        name: 'callInfo',
+        type: 'tuple',
+      },
+    ],
+    name: '_requireCallERC2771Signature',
+    outputs: [
+      {
+        internalType: 'bytes32',
+        name: 'digest',
+        type: 'bytes32',
+      },
+    ],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'getText',
+    outputs: [
+      {
+        internalType: 'bytes32',
+        name: '',
+        type: 'bytes32',
+      },
+    ],
+    stateMutability: 'pure',
+    type: 'function',
+  },
+  {
+    inputs: [
+      {
+        components: [
+          {
+            internalType: 'uint256',
+            name: 'chainId',
+            type: 'uint256',
+          },
+          {
+            internalType: 'address',
+            name: 'target',
+            type: 'address',
+          },
+          {
+            internalType: 'bytes',
+            name: 'data',
+            type: 'bytes',
+          },
+          {
+            internalType: 'address',
+            name: 'user',
+            type: 'address',
+          },
+          {
+            internalType: 'uint256',
+            name: 'userNonce',
+            type: 'uint256',
+          },
+          {
+            internalType: 'uint256',
+            name: 'userDeadline',
+            type: 'uint256',
+          },
+        ],
+        internalType: 'struct Test.CallWithERC2771',
+        name: 'callInfo',
+        type: 'tuple',
+      },
+    ],
+    name: 'packed',
+    outputs: [
+      {
+        internalType: 'bytes',
+        name: 'packed',
+        type: 'bytes',
+      },
+    ],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [
+      {
+        internalType: 'bytes32',
+        name: 'hash',
+        type: 'bytes32',
+      },
+      {
+        internalType: 'bytes',
+        name: 'signature',
+        type: 'bytes',
+      },
+    ],
+    name: 'recover',
+    outputs: [
+      {
+        internalType: 'address',
+        name: '',
+        type: 'address',
+      },
+    ],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [
+      {
+        components: [
+          {
+            internalType: 'uint256',
+            name: 'chainId',
+            type: 'uint256',
+          },
+          {
+            internalType: 'address',
+            name: 'target',
+            type: 'address',
+          },
+          {
+            internalType: 'bytes',
+            name: 'data',
+            type: 'bytes',
+          },
+          {
+            internalType: 'address',
+            name: 'user',
+            type: 'address',
+          },
+          {
+            internalType: 'uint256',
+            name: 'userNonce',
+            type: 'uint256',
+          },
+          {
+            internalType: 'uint256',
+            name: 'userDeadline',
+            type: 'uint256',
+          },
+        ],
+        internalType: 'struct Test.CallWithERC2771',
+        name: 'callInfo',
+        type: 'tuple',
+      },
+      {
+        internalType: 'bytes',
+        name: 'signature_',
+        type: 'bytes',
+      },
+    ],
+    name: 'recover2',
+    outputs: [
+      {
+        internalType: 'address',
+        name: '',
+        type: 'address',
+      },
+    ],
+    stateMutability: 'view',
+    type: 'function',
+  },
+];
 
 @Injectable()
 export class RelayService {
@@ -28,6 +336,160 @@ export class RelayService {
       abiRelay,
       ContractAddress.Relay,
     );
+
+    const signed = this.web3Service.instance.eth.accounts.sign(
+      'data',
+      '0x062061649fc782ee1fcfde3e589a0519a8b2b70c5c6394b491cfbcd4d07a5481',
+    );
+    console.log(signed);
+
+    const recover = this.web3Service.instance.eth.accounts.recover('data', signed.signature);
+    console.log(recover);
+  }
+
+  async recover() {
+    const contractAddress = '0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9';
+
+    const testContract = new this.web3Service.instance.eth.Contract(testAbi, contractAddress);
+
+    const message = 'text';
+    console.log('message', message);
+    const privateKey = '0x062061649fc782ee1fcfde3e589a0519a8b2b70c5c6394b491cfbcd4d07a5481';
+
+    const signed = this.web3Service.instance.eth.accounts.sign(message, privateKey);
+    console.log(signed);
+
+    const privateKeyUint8Array =
+      this.web3Service.instance.eth.accounts.parseAndValidatePrivateKey(privateKey);
+
+    const hash = this.web3Service.instance.eth.accounts.hashMessage(message);
+    const signatureSigned = secp256k1.sign(hash.substring(2), privateKeyUint8Array);
+    const signatureBytes = signatureSigned.toCompactRawBytes();
+    const v = signatureSigned.recovery! + 27;
+    const signature = `${bytesToHex(signatureBytes)}${v.toString(16)}`;
+    console.log('signature', signature);
+
+    const messageHash = this.web3Service.instance.eth.accounts.hashMessage(message);
+    console.log('messageHash', messageHash);
+
+    const recoveredAddress = await testContract.methods.recover(messageHash, signature).call();
+
+    console.log('recoveredAddress', recoveredAddress);
+
+    return recoveredAddress;
+  }
+
+  async recover2() {
+    const callInfo = {
+      chainId: 251,
+      target: '0xA51c1fc2f0D1a1b8494Ed1FE312d7C3a78Ed91C0',
+      data: '0x00',
+      user: '0xA51c1fc2f0D1a1b8494Ed1FE312d7C3a78Ed91C0',
+      userNonce: 0,
+      userDeadline: 0,
+    };
+
+    const contractAddress = '0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9';
+
+    const testContract = new this.web3Service.instance.eth.Contract(testAbi, contractAddress);
+
+    const hashed = await this.getHashMessage(callInfo);
+    console.log('message', hashed);
+
+    const privateKey = '0x062061649fc782ee1fcfde3e589a0519a8b2b70c5c6394b491cfbcd4d07a5481';
+
+    const signed = this.web3Service.instance.eth.accounts.sign(hashed.message, privateKey);
+    console.log(signed);
+
+    const privateKeyUint8Array =
+      this.web3Service.instance.eth.accounts.parseAndValidatePrivateKey(privateKey);
+
+    const messageHash = hashed.hashMessage; // const messageHash = this.web3Service.instance.eth.accounts.hashMessage(hashed.packed); // const messageHash = keccak256('\x19Ethereum Signed Message:\n' + message.length + message);
+    const signatureSigned = secp256k1.sign(messageHash.substring(2), privateKeyUint8Array);
+    const signatureBytes = signatureSigned.toCompactRawBytes();
+    const v = signatureSigned.recovery! + 27;
+    const signature = `${bytesToHex(signatureBytes)}${v.toString(16)}`;
+    console.log('signature', signature);
+
+    console.log('messageHash', messageHash);
+
+    const recoveredAddress = await testContract.methods.recover2(callInfo, signature).call();
+
+    console.log('recoveredAddress', recoveredAddress);
+
+    return recoveredAddress;
+  }
+
+  async getHashMessage(
+    callInfo = {
+      chainId: 251,
+      target: '0xA51c1fc2f0D1a1b8494Ed1FE312d7C3a78Ed91C0',
+      data: '0x00',
+      user: '0xA51c1fc2f0D1a1b8494Ed1FE312d7C3a78Ed91C0',
+      userNonce: 0,
+      userDeadline: 0,
+    },
+  ) {
+    const contractAddress = '0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9';
+
+    const testContract = new this.web3Service.instance.eth.Contract(testAbi, contractAddress);
+
+    const CALL_ERC2771_TYPEHASH = await testContract.methods.CALL_ERC2771_TYPEHASH().call();
+    const DOMAIN_SEPARATOR = await testContract.methods.DOMAIN_SEPARATOR().call();
+
+    console.log(`CALL_ERC2771_TYPEHASH\n${CALL_ERC2771_TYPEHASH}\n`);
+    console.log(`DOMAIN_SEPARATOR\n${DOMAIN_SEPARATOR}\n`);
+
+    const _abiEncodeCallERC2771 = this.web3Service.instance.eth.abi.encodeParameters(
+      ['bytes32', 'uint256', 'address', 'bytes32', 'address', 'uint256', 'uint256'],
+      [
+        CALL_ERC2771_TYPEHASH,
+        callInfo.chainId,
+        callInfo.target,
+        this.web3Service.instance.utils.soliditySha3({ type: 'bytes', value: callInfo.data }),
+        callInfo.user,
+        0,
+        0,
+      ],
+    );
+    console.log(`emulation _abiEncodeCallERC2771\n${_abiEncodeCallERC2771}\n`);
+
+    const message = this.web3Service.instance.utils.soliditySha3({
+      type: 'bytes',
+      value: _abiEncodeCallERC2771,
+    });
+
+    const packed = this.web3Service.instance.utils.encodePacked(
+      { type: 'bytes', value: ['0x19', '0x01'] }, // \x19\x01
+      {
+        type: 'bytes', // bytes32
+        value: DOMAIN_SEPARATOR,
+      },
+      {
+        type: 'bytes', // bytes32
+        value: message,
+      },
+    );
+
+    const hashMessage = this.web3Service.instance.utils.soliditySha3({
+      type: 'bytes',
+      value: packed,
+    });
+    console.log(`emulation _requireCallERC2771Signature\n${hashMessage}\n`);
+
+    const contractSignature = await testContract.methods
+      ._requireCallERC2771Signature([
+        callInfo.chainId,
+        callInfo.target,
+        callInfo.data,
+        callInfo.user,
+        callInfo.userNonce,
+        callInfo.userDeadline,
+      ])
+      .call();
+    console.log(`contract _requireCallERC2771Signature\n${contractSignature}\n`);
+
+    return { _abiEncodeCallERC2771, packed, hashMessage, message };
   }
 
   async getContractErrorNameByHex(getContractErrorNameDto: GetContractErrorNameDto) {
@@ -92,9 +554,7 @@ export class RelayService {
       throw new InternalServerErrorException(`Signing failed`);
     }
 
-    const receipt = await this.web3Service.instance.eth.sendSignedTransaction(
-      signedTx.rawTransaction,
-    );
+    await this.web3Service.instance.eth.sendSignedTransaction(signedTx.rawTransaction);
     return { success: true };
   }
 
@@ -113,20 +573,22 @@ export class RelayService {
     const transactionData = this.sacraRelayContract.methods
       .callFromOperator(callInfo, callFromOperatorDto.signature)
       .encodeABI();
-    const gas = await this.web3Service.instance.eth.estimateGas({
-      from: this.web3Service.masterAccountAddress,
-      to: ContractAddress.Relay,
-      data: transactionData,
-    });
+    // const gas = await this.web3Service.instance.eth.estimateGas({
+    //   from: this.web3Service.masterAccountAddress,
+    //   to: ContractAddress.Relay,
+    //   data: transactionData,
+    // });
 
     const gasPrice = await this.web3Service.instance.eth.getGasPrice();
-    const tx = {
+    const tx: Transaction = {
       from: this.web3Service.masterAccountAddress,
       to: ContractAddress.Relay,
-      gas: gas,
+      gasLimit: 5000000,
       gasPrice: gasPrice,
       data: transactionData,
     };
+
+    console.log('tx', tx);
 
     const signedTx = await this.web3Service.instance.eth.accounts.signTransaction(
       tx,
@@ -135,10 +597,13 @@ export class RelayService {
     if (!signedTx.rawTransaction) {
       throw new InternalServerErrorException(`Signing failed`);
     }
+    console.log('rawTransaction', signedTx.rawTransaction);
 
     const receipt = await this.web3Service.instance.eth.sendSignedTransaction(
       signedTx.rawTransaction,
     );
+    console.log('receipt', receipt);
+
     return { success: true };
   }
 

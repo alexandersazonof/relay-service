@@ -25,4 +25,22 @@ export class RelayController {
   callFromOperator(@Body() callFromOperatorDto: CallFromOperatorDto) {
     return this.relayService.callFromOperator(callFromOperatorDto);
   }
+
+  @Get('/test')
+  test() {
+    return this.relayService.getHashMessage();
+  }
+
+  @Get('/recover')
+  async recover(/*@Query('hash') hash: string, @Query('signature') signature: string*/) {
+    console.log('Recover 1');
+    await this.relayService.recover();
+
+    console.log(
+      '______________________________________________________________________________________________________________',
+    );
+
+    console.log('Recover 2');
+    return this.relayService.recover2();
+  }
 }
