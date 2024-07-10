@@ -381,43 +381,45 @@ export class RelayService {
 
   async recover2() {
     const callInfo = {
-      chainId: 251,
-      target: '0xA51c1fc2f0D1a1b8494Ed1FE312d7C3a78Ed91C0',
-      data: '0x00',
-      user: '0xA51c1fc2f0D1a1b8494Ed1FE312d7C3a78Ed91C0',
+      chainId: 250,
+      target: '0x52CEba41Da235Af367bFC0b0cCd3314cb901bB5F',
+      data: this.sacraRelayContract.methods.CALL_ERC2771_TYPEHASH().encodeABI(),
+      user: '0x66Cb9D55Dfe4530D26C2cD060eb2eCb66A5C51a4',
       userNonce: 0,
       userDeadline: 0,
     };
 
-    const contractAddress = '0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9';
+    console.log('callInfo tuple', Object.values(callInfo));
 
-    const testContract = new this.web3Service.instance.eth.Contract(testAbi, contractAddress);
+    // const contractAddress = '0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9';
+
+    // const testContract = new this.web3Service.instance.eth.Contract(testAbi, contractAddress);
+
+    const privateKey = '0x062061649fc782ee1fcfde3e589a0519a8b2b70c5c6394b491cfbcd4d07a5481';
 
     const hashed = await this.getHashMessage(callInfo);
     console.log('message', hashed);
 
-    const privateKey = '0x062061649fc782ee1fcfde3e589a0519a8b2b70c5c6394b491cfbcd4d07a5481';
-
-    const signed = this.web3Service.instance.eth.accounts.sign(hashed.message, privateKey);
-    console.log(signed);
-
     const privateKeyUint8Array =
       this.web3Service.instance.eth.accounts.parseAndValidatePrivateKey(privateKey);
 
-    const messageHash = hashed.hashMessage; // const messageHash = this.web3Service.instance.eth.accounts.hashMessage(hashed.packed); // const messageHash = keccak256('\x19Ethereum Signed Message:\n' + message.length + message);
+    const messageHash = hashed.hashMessage;
+
     const signatureSigned = secp256k1.sign(messageHash.substring(2), privateKeyUint8Array);
     const signatureBytes = signatureSigned.toCompactRawBytes();
     const v = signatureSigned.recovery! + 27;
     const signature = `${bytesToHex(signatureBytes)}${v.toString(16)}`;
     console.log('signature', signature);
-
     console.log('messageHash', messageHash);
 
-    const recoveredAddress = await testContract.methods.recover2(callInfo, signature).call();
+    // const recoveredAddress = await testContract.methods.recover2(callInfo, signature).call();
+    // console.log('recoveredAddress', recoveredAddress);
 
-    console.log('recoveredAddress', recoveredAddress);
+    // return recoveredAddress;
 
-    return recoveredAddress;
+    // const signed = this.web3Service.instance.eth.accounts.sign(hashed.message, privateKey);
+    // console.log('signed', signed);
+    // const messageHash = this.web3Service.instance.eth.accounts.hashMessage(hashed.packed); // const messageHash = keccak256('\x19Ethereum Signed Message:\n' + message.length + message);
   }
 
   async getHashMessage(
@@ -430,12 +432,12 @@ export class RelayService {
       userDeadline: 0,
     },
   ) {
-    const contractAddress = '0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9';
+    // const contractAddress = '0x52CEba41Da235Af367bFC0b0cCd3314cb901bB5F';
 
-    const testContract = new this.web3Service.instance.eth.Contract(testAbi, contractAddress);
+    const contract = this.sacraRelayContract; // const testContract = new this.web3Service.instance.eth.Contract(testAbi, contractAddress);
 
-    const CALL_ERC2771_TYPEHASH = await testContract.methods.CALL_ERC2771_TYPEHASH().call();
-    const DOMAIN_SEPARATOR = await testContract.methods.DOMAIN_SEPARATOR().call();
+    const CALL_ERC2771_TYPEHASH = await contract.methods.CALL_ERC2771_TYPEHASH().call();
+    const DOMAIN_SEPARATOR = await contract.methods.DOMAIN_SEPARATOR().call();
 
     console.log(`CALL_ERC2771_TYPEHASH\n${CALL_ERC2771_TYPEHASH}\n`);
     console.log(`DOMAIN_SEPARATOR\n${DOMAIN_SEPARATOR}\n`);
@@ -477,17 +479,17 @@ export class RelayService {
     });
     console.log(`emulation _requireCallERC2771Signature\n${hashMessage}\n`);
 
-    const contractSignature = await testContract.methods
-      ._requireCallERC2771Signature([
-        callInfo.chainId,
-        callInfo.target,
-        callInfo.data,
-        callInfo.user,
-        callInfo.userNonce,
-        callInfo.userDeadline,
-      ])
-      .call();
-    console.log(`contract _requireCallERC2771Signature\n${contractSignature}\n`);
+    // const contractSignature = await testContract.methods
+    //   ._requireCallERC2771Signature([
+    //     callInfo.chainId,
+    //     callInfo.target,
+    //     callInfo.data,
+    //     callInfo.user,
+    //     callInfo.userNonce,
+    //     callInfo.userDeadline,
+    //   ])
+    //   .call();
+    // console.log(`contract _requireCallERC2771Signature\n${contractSignature}\n`);
 
     return { _abiEncodeCallERC2771, packed, hashMessage, message };
   }

@@ -33,14 +33,14 @@ export class RelayController {
 
   @Get('/recover')
   async recover(/*@Query('hash') hash: string, @Query('signature') signature: string*/) {
-    console.log('Recover 1');
-    await this.relayService.recover();
+    // console.log('Recover 1');
+    // await this.relayService.recover();
 
-    console.log(
-      '______________________________________________________________________________________________________________',
-    );
+    // console.log(
+    //   '______________________________________________________________________________________________________________',
+    // );
 
-    console.log('Recover 2');
+    // console.log('Recover 2');
     return this.relayService.recover2();
   }
 }
