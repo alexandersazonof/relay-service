@@ -1,25 +1,12 @@
 import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AbiItem, Contract, Transaction } from 'web3';
-import { AbiErrorFragment } from 'web3-types/src/eth_abi_types';
-import { keccak256 } from 'js-sha3';
 import { Web3Service } from 'src/domain/web3/web3.service';
-import { abiErrors, abiHero, abiRelay, ContractAddress } from './constants';
+import { abiHero, abiRelay, ContractAddress } from './constants';
 import { CallFromDelegatorDto } from './dto/call-from-delegator.dto';
-import { GetContractErrorNameDto } from './dto/get-contract-error-name.dto';
 import { CallFromOperatorDto } from './dto/call-from-operator.dto';
-import { IContractErrorData } from './interfaces/contract-error-data.interface';
 import { secp256k1 } from 'ethereum-cryptography/secp256k1.js';
 import { bytesToHex } from 'web3-utils';
-
-interface ICallWithERC2771 {
-  chainId: number;
-  target: string;
-  data: string;
-  user: string;
-  userNonce: number;
-  userDeadline: number;
-}
 
 @Injectable()
 export class RelayService {
@@ -28,7 +15,7 @@ export class RelayService {
 
   constructor(
     private readonly configService: ConfigService,
-    private readonly web3Service: Web3Service,
+    public readonly web3Service: Web3Service,
   ) {
     this.sacraHeroContract = new this.web3Service.instance.eth.Contract(
       abiHero,
@@ -41,17 +28,21 @@ export class RelayService {
     );
   }
 
-  private async CALL_ERC2771_TYPEHASH(): Promise<string> {
-    return await this.sacraRelayContract.methods.CALL_ERC2771_TYPEHASH().call();
+  private checkAllowedContractAddress(address: string) {
+    const contracts = Object.values<string>(ContractAddress);
+    const isKnownContactAddress = contracts.includes(address);
+    if (!isKnownContactAddress) {
+      throw new InternalServerErrorException(`Contract address ${address} not allowed`);
+    }
   }
 
-  private async DOMAIN_SEPARATOR(): Promise<string> {
-    return await this.sacraRelayContract.methods.DOMAIN_SEPARATOR().call();
-  }
-
-  async getHashedMessage(callInfo: ICallWithERC2771) {
-    const CALL_ERC2771_TYPEHASH = await this.CALL_ERC2771_TYPEHASH();
-    const DOMAIN_SEPARATOR = await this.DOMAIN_SEPARATOR();
+  async getHashedMessage(callInfo: CallFromOperatorDto) {
+    const CALL_ERC2771_TYPEHASH: string = await this.sacraRelayContract.methods
+      .CALL_ERC2771_TYPEHASH()
+      .call();
+    const DOMAIN_SEPARATOR: string = await this.sacraRelayContract.methods
+      .DOMAIN_SEPARATOR()
+      .call();
 
     const encodedParametrs = this.web3Service.instance.eth.abi.encodeParameters(
       ['bytes32', 'uint256', 'address', 'bytes32', 'address', 'uint256', 'uint256'],
@@ -60,7 +51,7 @@ export class RelayService {
         callInfo.chainId,
         callInfo.target,
         this.web3Service.instance.utils.soliditySha3({ type: 'bytes', value: callInfo.data }),
-        callInfo.user,
+        callInfo.fromAddress,
         callInfo.userNonce,
         callInfo.userDeadline,
       ],
@@ -99,7 +90,7 @@ export class RelayService {
     return `${bytesToHex(signatureBytes)}${r}`;
   }
 
-  private async signCallWithERC2771(callInfo: ICallWithERC2771, privateKey: string) {
+  private async signCallWithERC2771(callInfo: CallFromOperatorDto, privateKey: string) {
     const { hashedMessage } = await this.getHashedMessage(callInfo);
     const messageHexWithoutPrefix = hashedMessage.substring(2);
 
@@ -109,34 +100,8 @@ export class RelayService {
     return this.createSignatureManually(messageHexWithoutPrefix, privateKeyUint8Array);
   }
 
-  async getContractErrorNameByHex(getContractErrorNameDto: GetContractErrorNameDto) {
-    const errors = abiErrors
-      .map((abiError) => {
-        if (!abiError.inputs) return null;
-        const result: IContractErrorData = {};
-
-        const joinedInputTypes = abiError.inputs.map((input: any) => input.type).join(',');
-        const signature = `${abiError.name}(${joinedInputTypes})`;
-        const hash = '0x' + keccak256(signature).substring(0, 8);
-
-        if (hash !== getContractErrorNameDto.code.substring(0, 10)) return null;
-        result.error = abiError.name;
-
-        if (getContractErrorNameDto.code.length > 10) return null;
-        result.decoded = this.web3Service.instance.eth.abi.decodeParameters(
-          abiError.inputs as AbiErrorFragment[],
-          getContractErrorNameDto.code.slice(10),
-        );
-
-        return result;
-      })
-      .filter(Boolean) as IContractErrorData[];
-
-    return { data: errors };
-  }
-
   async callFromDelegator(callFromDelegatorDto: CallFromDelegatorDto) {
-    this.checkKnownContractAddress(callFromDelegatorDto.target);
+    this.checkAllowedContractAddress(callFromDelegatorDto.target);
 
     const callInfo = {
       chainId: 250,
@@ -176,7 +141,7 @@ export class RelayService {
   }
 
   async callFromOperator(callFromOperatorDto: CallFromOperatorDto) {
-    this.checkKnownContractAddress(callFromOperatorDto.target);
+    this.checkAllowedContractAddress(callFromOperatorDto.target);
 
     const callInfo = {
       chainId: 250,
@@ -189,15 +154,15 @@ export class RelayService {
 
     console.log('[callInfo, signature]', callInfo, callFromOperatorDto.signature);
 
-    // const txData = this.sacraRelayContract.methods
-    //   .callFromOperator(callInfo, callFromOperatorDto.signature)
-    //   .encodeABI();
+    const txData = this.sacraRelayContract.methods
+      .callFromOperator(callInfo, callFromOperatorDto.signature)
+      .encodeABI();
 
-    // const tx: Transaction = {
-    //   from: this.web3Service.masterAccountAddress,
-    //   to: ContractAddress.Relay,
-    //   data: txData,
-    // };
+    const tx: Transaction = {
+      from: this.web3Service.masterAccountAddress,
+      to: ContractAddress.Relay,
+      data: txData,
+    };
 
     // const gasPrice = await this.web3Service.instance.eth.getGasPrice();
     // const gas = await this.web3Service.instance.eth.estimateGas(tx).catch((error) => {
@@ -205,94 +170,95 @@ export class RelayService {
     //   return '100000';
     // });
 
-    // const txHash = await this.web3Service.instance.eth
-    //   .sendTransaction({
-    //     ...tx,
-    //     // gasPrice,
-    //     // gas,
-    //   })
-    //   .catch((error) => error);
+    const txHash = await this.web3Service.instance.eth
+      .sendTransaction({
+        ...tx,
+        // gasPrice,
+        // gas,
+      })
+      .catch((error) => error);
 
-    // return txHash;
+    return txHash;
   }
 
-  // async create() {
-  //   try {
-  //     const gas = await this.web3Service.instance.eth.estimateGas({
-  //       from: '0x66cb9d55dfe4530d26c2cd060eb2ecb66a5c51a4',
-  //       to: ContractAddress.Hero,
-  //       data: this.sacraHeroContract.methods
-  //         .create('0x5b169bfd148175ba0bb1259b75978a847c75fe5b', 'test-name', false)
-  //         .encodeABI(),
-  //     });
-
-  //     const tx = {
-  //       from: '0x66cb9d55dfe4530d26c2cd060eb2ecb66a5c51a4',
-  //       to: ContractAddress.Hero,
-  //       gas: gas,
-  //       gasPrice: await this.web3Service.instance.eth.getGasPrice(),
-  //       data: this.sacraHeroContract.methods
-  //         .create('0x5b169bfd148175ba0bb1259b75978a847c75fe5b', 'test-name', false)
-  //         .encodeABI(),
-  //     };
-  //     const signedTx = await this.web3Service.instance.eth.accounts.signTransaction(
-  //       tx,
-  //       '455a3303a58926b697225f13b64ccddcc3d79fe3f24c4c20c3163107ece680ed',
-  //     );
-  //     if (signedTx.rawTransaction) {
-  //       const receipt = await this.web3Service.instance.eth.sendSignedTransaction(
-  //         signedTx.rawTransaction,
-  //       );
-  //       console.log(receipt);
-  //       return { success: true };
-  //     } else {
-  //       throw new InternalServerErrorException({ success: false, message: 'Signing failed' });
-  //     }
-  //   } catch (e) {
-  //     console.log(e);
-  //     throw new InternalServerErrorException({ success: false, message: e });
-  //   }
-  // }
-
-  // new this.web3Service.instance.eth.abi.encode
-
-  async testCallFromOperator(userPrivateKey: string = this.web3Service.masterAccountPrivateKey) {
-    const createHeroData = {
-      address: '0x5b169bfd148175ba0bb1259b75978a847c75fe5b',
-      name: 'RandomHeroName' + Math.floor(Math.random() * 1000),
-      options: false,
-    };
-
-    const createHeroEncoded = this.sacraHeroContract.methods
-      .create(createHeroData.address, createHeroData.name, createHeroData.options)
-      .encodeABI();
-
-    const callInfo: ICallWithERC2771 = {
-      chainId: 250,
-      target: ContractAddress.Hero,
-      data: createHeroEncoded,
-      user: this.web3Service.masterAccountAddress,
-      userNonce: 0,
-      userDeadline: 0,
-    };
-
-    const signature = await this.signCallWithERC2771(callInfo, userPrivateKey);
+  async userCallFromOperator(
+    callFromOperatorDto: CallFromOperatorDto,
+    userPrivateKey: string = this.web3Service.masterAccountPrivateKey,
+  ) {
+    const signature = await this.signCallWithERC2771(callFromOperatorDto, userPrivateKey);
 
     const result = await this.callFromOperator({
-      fromAddress: callInfo.user,
-      target: callInfo.target,
-      data: callInfo.data,
+      chainId: callFromOperatorDto.chainId,
+
+      fromAddress: this.web3Service.masterAccountAddress,
+
+      target: callFromOperatorDto.target,
+      data: callFromOperatorDto.data,
+
+      userNonce: callFromOperatorDto.userNonce,
+      userDeadline: callFromOperatorDto.userDeadline,
+
       signature: signature,
     }).catch((error) => error);
 
     return result;
   }
-
-  private checkKnownContractAddress(address: string) {
-    const contracts = Object.values<string>(ContractAddress);
-    const isKnownContactAddress = contracts.includes(address);
-    if (!isKnownContactAddress) {
-      throw new InternalServerErrorException(`Contract address ${address} not allowed`);
-    }
-  }
 }
+
+// async create() {
+//   try {
+//     const gas = await this.web3Service.instance.eth.estimateGas({
+//       from: '0x66cb9d55dfe4530d26c2cd060eb2ecb66a5c51a4',
+//       to: ContractAddress.Hero,
+//       data: this.sacraHeroContract.methods
+//         .create('0x5b169bfd148175ba0bb1259b75978a847c75fe5b', 'test-name', false)
+//         .encodeABI(),
+//     });
+
+//     const tx = {
+//       from: '0x66cb9d55dfe4530d26c2cd060eb2ecb66a5c51a4',
+//       to: ContractAddress.Hero,
+//       gas: gas,
+//       gasPrice: await this.web3Service.instance.eth.getGasPrice(),
+//       data: this.sacraHeroContract.methods
+//         .create('0x5b169bfd148175ba0bb1259b75978a847c75fe5b', 'test-name', false)
+//         .encodeABI(),
+//     };
+//     const signedTx = await this.web3Service.instance.eth.accounts.signTransaction(
+//       tx,
+//       '455a3303a58926b697225f13b64ccddcc3d79fe3f24c4c20c3163107ece680ed',
+//     );
+//     if (signedTx.rawTransaction) {
+//       const receipt = await this.web3Service.instance.eth.sendSignedTransaction(
+//         signedTx.rawTransaction,
+//       );
+//       console.log(receipt);
+//       return { success: true };
+//     } else {
+//       throw new InternalServerErrorException({ success: false, message: 'Signing failed' });
+//     }
+//   } catch (e) {
+//     console.log(e);
+//     throw new InternalServerErrorException({ success: false, message: e });
+//   }
+// }
+
+// new this.web3Service.instance.eth.abi.encode
+// const createHeroData = {
+//   address: '0x5b169bfd148175ba0bb1259b75978a847c75fe5b',
+//   name: 'RandomHeroName' + Math.floor(Math.random() * 1000),
+//   options: false,
+// };
+
+// const createHeroEncoded = this.sacraHeroContract.methods
+//   .create(createHeroData.address, createHeroData.name, createHeroData.options)
+//   .encodeABI();
+
+// const callInfo: ICallWithERC2771 = {
+//   chainId: 250,
+//   target: ContractAddress.Hero,
+//   data: createHeroEncoded,
+//   user: this.web3Service.masterAccountAddress,
+//   userNonce: 0,
+//   userDeadline: 0,
+// };

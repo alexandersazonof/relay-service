@@ -11,7 +11,7 @@ export class RelayController {
   @Get('/error')
   @HttpCode(HttpStatus.OK)
   getContractErrorNameByHex(@Query() getContractErrorNameDto: GetContractErrorNameDto) {
-    return this.relayService.getContractErrorNameByHex(getContractErrorNameDto);
+    return this.relayService.web3Service.getContractErrorNameByHex(getContractErrorNameDto);
   }
 
   @Post('/call-from-delegator')
@@ -26,8 +26,11 @@ export class RelayController {
     return this.relayService.callFromOperator(callFromOperatorDto);
   }
 
-  @Get('/test-call-from-operator')
-  async recover() {
-    return this.relayService.testCallFromOperator();
+  @Post('/user-call-from-operator')
+  async userCallFromOperator(@Body() callFromOperatorDto: CallFromOperatorDto) {
+    return this.relayService.userCallFromOperator(
+      callFromOperatorDto,
+      callFromOperatorDto.userPrivateKey,
+    );
   }
 }

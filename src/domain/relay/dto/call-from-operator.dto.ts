@@ -1,6 +1,10 @@
-import { IsNotEmpty, IsString } from 'class-validator';
+import { IsNotEmpty, IsNumber, IsOptional, IsString } from 'class-validator';
 
 export class CallFromOperatorDto {
+  @IsOptional()
+  @IsNumber()
+  chainId: number = 250;
+
   @IsNotEmpty()
   @IsString()
   fromAddress: string;
@@ -16,4 +20,16 @@ export class CallFromOperatorDto {
   @IsNotEmpty()
   @IsString()
   signature: string;
+
+  @IsOptional()
+  @IsNumber()
+  userNonce: number = 0;
+
+  @IsOptional()
+  @IsNumber()
+  userDeadline: number = 0;
+
+  @IsOptional()
+  @IsString()
+  userPrivateKey?: string;
 }
