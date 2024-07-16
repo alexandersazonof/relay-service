@@ -17,6 +17,6 @@
     "strictBindCallApply": false,
     "forceConsistentCasingInFileNames": false,
     "noFallthroughCasesInSwitch": false,
-    "types": ["estree", "graceful-fs", "json-schema", "methods"]
+    "types": ["estree", "graceful-fs", "json-schema", "methods", "jest"]
   }
 }

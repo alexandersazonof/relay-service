@@ -1,7 +1,7 @@
 import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AbiItem, Contract, Transaction } from 'web3';
-import { Web3Service } from 'src/domain/web3/web3.service';
+import { Web3Service } from '../../domain/web3/web3.service';
 import { abiHero, abiRelay, ContractAddress } from './constants';
 import { CallFromDelegatorDto } from './dto/call-from-delegator.dto';
 import { CallFromOperatorDto } from './dto/call-from-operator.dto';
@@ -10,8 +10,8 @@ import { bytesToHex } from 'web3-utils';
 
 @Injectable()
 export class RelayService {
-  public readonly sacraRelayContract: Contract<AbiItem[]>;
-  public readonly sacraHeroContract: Contract<AbiItem[]>;
+  public sacraRelayContract: Contract<AbiItem[]>;
+  public sacraHeroContract: Contract<AbiItem[]>;
 
   constructor(
     private readonly configService: ConfigService,
@@ -28,12 +28,17 @@ export class RelayService {
     );
   }
 
+  public checkAllowedContractAddressWrapper(address: string): boolean {
+    return this.checkAllowedContractAddress(address);
+  }
+
   private checkAllowedContractAddress(address: string) {
     const contracts = Object.values<string>(ContractAddress);
     const isKnownContactAddress = contracts.includes(address);
     if (!isKnownContactAddress) {
       throw new InternalServerErrorException(`Contract address ${address} not allowed`);
     }
+    return true;
   }
 
   async getHashedMessage(callInfo: CallFromOperatorDto) {
@@ -164,17 +169,9 @@ export class RelayService {
       data: txData,
     };
 
-    // const gasPrice = await this.web3Service.instance.eth.getGasPrice();
-    // const gas = await this.web3Service.instance.eth.estimateGas(tx).catch((error) => {
-    //   console.log(error);
-    //   return '100000';
-    // });
-
     const txHash = await this.web3Service.instance.eth
       .sendTransaction({
         ...tx,
-        // gasPrice,
-        // gas,
       })
       .catch((error) => error);
 
