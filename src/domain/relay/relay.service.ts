@@ -1,12 +1,13 @@
 import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { AbiItem, Contract, Transaction } from 'web3';
+import { AbiItem, Contract, Transaction, utils } from 'web3';
 import { Web3Service } from '../../domain/web3/web3.service';
 import { abiHero, abiRelay, ContractAddress } from './constants';
 import { CallFromDelegatorDto } from './dto/call-from-delegator.dto';
 import { CallFromOperatorDto } from './dto/call-from-operator.dto';
 import { secp256k1 } from 'ethereum-cryptography/secp256k1.js';
 import { bytesToHex } from 'web3-utils';
+import { ChainEnum } from '../web3/constants/chain.enum';
 
 @Injectable()
 export class RelayService {
@@ -17,12 +18,12 @@ export class RelayService {
     private readonly configService: ConfigService,
     public readonly web3Service: Web3Service,
   ) {
-    this.sacraHeroContract = new this.web3Service.instance.eth.Contract(
+    this.sacraHeroContract = new (this.web3Service.get(ChainEnum.Fantom).instance.eth.Contract)(
       abiHero,
       ContractAddress.Hero,
     );
 
-    this.sacraRelayContract = new this.web3Service.instance.eth.Contract(
+    this.sacraRelayContract = new (this.web3Service.get(ChainEnum.Fantom).instance.eth.Contract)(
       abiRelay,
       ContractAddress.Relay,
     );
@@ -49,25 +50,27 @@ export class RelayService {
       .DOMAIN_SEPARATOR()
       .call();
 
-    const encodedParametrs = this.web3Service.instance.eth.abi.encodeParameters(
-      ['bytes32', 'uint256', 'address', 'bytes32', 'address', 'uint256', 'uint256'],
-      [
-        CALL_ERC2771_TYPEHASH,
-        callInfo.chainId,
-        callInfo.target,
-        this.web3Service.instance.utils.soliditySha3({ type: 'bytes', value: callInfo.data }),
-        callInfo.fromAddress,
-        callInfo.userNonce,
-        callInfo.userDeadline,
-      ],
-    );
+    const encodedParametrs = this.web3Service
+      .get(ChainEnum.Fantom)
+      .instance.eth.abi.encodeParameters(
+        ['bytes32', 'uint256', 'address', 'bytes32', 'address', 'uint256', 'uint256'],
+        [
+          CALL_ERC2771_TYPEHASH,
+          callInfo.chainId,
+          callInfo.target,
+          utils.soliditySha3({ type: 'bytes', value: callInfo.data }),
+          callInfo.fromAddress,
+          callInfo.userNonce,
+          callInfo.userDeadline,
+        ],
+      );
 
-    const message = this.web3Service.instance.utils.soliditySha3({
+    const message = utils.soliditySha3({
       type: 'bytes',
       value: encodedParametrs,
     });
 
-    const encodedMessage = this.web3Service.instance.utils.encodePacked(
+    const encodedMessage = utils.encodePacked(
       { type: 'bytes', value: ['0x19', '0x01'] },
       {
         type: 'bytes',
@@ -79,7 +82,7 @@ export class RelayService {
       },
     );
 
-    const hashedMessage = this.web3Service.instance.utils.soliditySha3({
+    const hashedMessage = utils.soliditySha3({
       type: 'bytes',
       value: encodedMessage,
     });
@@ -99,8 +102,9 @@ export class RelayService {
     const { hashedMessage } = await this.getHashedMessage(callInfo);
     const messageHexWithoutPrefix = hashedMessage.substring(2);
 
-    const privateKeyUint8Array =
-      this.web3Service.instance.eth.accounts.parseAndValidatePrivateKey(privateKey);
+    const privateKeyUint8Array = this.web3Service
+      .get(ChainEnum.Fantom)
+      .instance.eth.accounts.parseAndValidatePrivateKey(privateKey);
 
     return this.createSignatureManually(messageHexWithoutPrefix, privateKeyUint8Array);
   }
@@ -118,13 +122,13 @@ export class RelayService {
     };
 
     const transactionData = this.sacraRelayContract.methods.callFromDelegator(callInfo).encodeABI();
-    const gas = await this.web3Service.instance.eth.estimateGas({
+    const gas = await this.web3Service.get(ChainEnum.Fantom).instance.eth.estimateGas({
       from: this.web3Service.masterAccountAddress,
       to: ContractAddress.Relay,
       data: transactionData,
     });
 
-    const gasPrice = await this.web3Service.instance.eth.getGasPrice();
+    const gasPrice = await this.web3Service.get(ChainEnum.Fantom).instance.eth.getGasPrice();
     const tx = {
       from: this.web3Service.masterAccountAddress,
       to: ContractAddress.Relay,
@@ -133,15 +137,16 @@ export class RelayService {
       data: transactionData,
     };
 
-    const signedTx = await this.web3Service.instance.eth.accounts.signTransaction(
-      tx,
-      this.web3Service.masterAccountPrivateKey,
-    );
+    const signedTx = await this.web3Service
+      .get(ChainEnum.Fantom)
+      .instance.eth.accounts.signTransaction(tx, this.web3Service.masterAccountPrivateKey);
     if (!signedTx.rawTransaction) {
       throw new InternalServerErrorException(`Signing failed`);
     }
 
-    await this.web3Service.instance.eth.sendSignedTransaction(signedTx.rawTransaction);
+    await this.web3Service
+      .get(ChainEnum.Fantom)
+      .instance.eth.sendSignedTransaction(signedTx.rawTransaction);
     return { success: true };
   }
 
@@ -169,8 +174,9 @@ export class RelayService {
       data: txData,
     };
 
-    const txHash = await this.web3Service.instance.eth
-      .sendTransaction({
+    const txHash = await this.web3Service
+      .get(ChainEnum.Fantom)
+      .instance.eth.sendTransaction({
         ...tx,
       })
       .catch((error) => error);

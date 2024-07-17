@@ -1,5 +1,5 @@
 export interface IEnvConfig {
-  RPC_PROVIDER: string;
+  // RPC_PROVIDER: string;
   PORT: number;
 
   ACCOUNT_ADDRESS: string;
