@@ -1,3 +1,3 @@
 export enum ChainEnum {
-  Fantom = 250,
+  Fantom = 'fantom',
 }

@@ -11,7 +11,7 @@ import { Provider } from './providers/provider';
 
 @Injectable()
 export class Web3Service {
-  public readonly providers: { [key in ChainEnum]: Provider };
+  public readonly providers = new Map<ChainEnum, Provider>();
 
   public readonly masterAccountAddress: string;
   public readonly masterAccountPrivateKey: string;
@@ -20,13 +20,15 @@ export class Web3Service {
     this.masterAccountAddress = configService.get('ACCOUNT_ADDRESS');
     this.masterAccountPrivateKey = configService.get('PRIVATE_KEY');
 
-    for (const chainId of Object.keys(Providers)) {
-      this.providers[chainId] = new Providers[chainId]();
+    for (const chain of Object.values(ChainEnum)) {
+      const provider = Providers[chain as unknown as ChainEnum];
+
+      this.providers.set(chain as unknown as ChainEnum, new provider());
     }
   }
 
   get<T extends ChainEnum>(chainId: T) {
-    return this.providers[chainId] as unknown as InstanceType<(typeof Providers)[T]>;
+    return this.providers.get(chainId);
   }
 
   async getContractErrorNameByHex(getContractErrorNameDto: GetContractErrorNameDto) {

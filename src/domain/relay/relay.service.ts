@@ -27,6 +27,14 @@ export class RelayService {
       abiRelay,
       ContractAddress.Relay,
     );
+
+    // (async () => {
+    //   const CALL_ERC2771_TYPEHASH: string = await this.sacraRelayContract.methods
+    //     .CALL_ERC2771_TYPEHASH()
+    //     .call();
+
+    //   console.log(CALL_ERC2771_TYPEHASH);
+    // })();
   }
 
   public checkAllowedContractAddressWrapper(address: string): boolean {
