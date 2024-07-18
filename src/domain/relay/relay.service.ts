@@ -2,12 +2,13 @@ import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AbiItem, Contract, Transaction, utils } from 'web3';
 import { Web3Service } from '../../domain/web3/web3.service';
-import { abiHero, abiRelay, ContractAddress } from './constants';
+import { abiHero, abiRelay } from './constants';
 import { CallFromDelegatorDto } from './dto/call-from-delegator.dto';
 import { CallFromOperatorDto } from './dto/call-from-operator.dto';
 import { secp256k1 } from 'ethereum-cryptography/secp256k1.js';
 import { bytesToHex } from 'web3-utils';
 import { ChainEnum } from '../web3/constants/chain.enum';
+import { ContractAddresses, ContractEnum } from './constants/contract-address';
 
 @Injectable()
 export class RelayService {
@@ -21,12 +22,12 @@ export class RelayService {
   ) {
     this.sacraHeroContract = new (this.web3Service.get(ChainEnum.Fantom).instance.eth.Contract)(
       abiHero,
-      ContractAddress.Hero,
+      ContractAddresses[ChainEnum.Fantom][ContractEnum.Hero],
     );
 
     this.sacraRelayContract = new (this.web3Service.get(ChainEnum.Fantom).instance.eth.Contract)(
       abiRelay,
-      ContractAddress.Relay,
+      ContractAddresses[ChainEnum.Fantom][ContractEnum.Relay],
     );
 
     // (async () => {
@@ -43,7 +44,7 @@ export class RelayService {
   }
 
   private checkAllowedContractAddress(address: string) {
-    const contracts = Object.values<string>(ContractAddress);
+    const contracts = Object.values<string>(ContractAddresses[ChainEnum.Fantom]);
     const isKnownContactAddress = contracts.includes(address);
     if (!isKnownContactAddress) {
       throw new InternalServerErrorException(`Contract address ${address} not allowed`);
@@ -133,14 +134,14 @@ export class RelayService {
     const transactionData = this.sacraRelayContract.methods.callFromDelegator(callInfo).encodeABI();
     const gas = await this.web3Service.get(ChainEnum.Fantom).instance.eth.estimateGas({
       from: this.web3Service.masterAccountAddress,
-      to: ContractAddress.Relay,
+      to: ContractAddresses[ChainEnum.Fantom][ContractEnum.Relay],
       data: transactionData,
     });
 
     const gasPrice = await this.web3Service.get(ChainEnum.Fantom).instance.eth.getGasPrice();
     const tx = {
       from: this.web3Service.masterAccountAddress,
-      to: ContractAddress.Relay,
+      to: ContractAddresses[ChainEnum.Fantom][ContractEnum.Relay],
       gas: gas,
       gasPrice: gasPrice,
       data: transactionData,
@@ -179,7 +180,7 @@ export class RelayService {
 
     const tx: Transaction = {
       from: this.web3Service.masterAccountAddress,
-      to: ContractAddress.Relay,
+      to: ContractAddresses[ChainEnum.Fantom][ContractEnum.Relay],
       data: txData,
     };
 
@@ -221,7 +222,7 @@ export class RelayService {
 //   try {
 //     const gas = await this.web3Service.instance.eth.estimateGas({
 //       from: '0x66cb9d55dfe4530d26c2cd060eb2ecb66a5c51a4',
-//       to: ContractAddress.Hero,
+//       to: ContractAddresses[ChainEnum.Fantom][ContractEnum.Hero],
 //       data: this.sacraHeroContract.methods
 //         .create('0x5b169bfd148175ba0bb1259b75978a847c75fe5b', 'test-name', false)
 //         .encodeABI(),
@@ -229,7 +230,7 @@ export class RelayService {
 
 //     const tx = {
 //       from: '0x66cb9d55dfe4530d26c2cd060eb2ecb66a5c51a4',
-//       to: ContractAddress.Hero,
+//       to: ContractAddresses[ChainEnum.Fantom][ContractEnum.Hero],
 //       gas: gas,
 //       gasPrice: await this.web3Service.instance.eth.getGasPrice(),
 //       data: this.sacraHeroContract.methods
@@ -268,7 +269,7 @@ export class RelayService {
 
 // const callInfo: ICallWithERC2771 = {
 //   chainId: 250,
-//   target: ContractAddress.Hero,
+//   target: ContractAddresses[ChainEnum.Fantom][ContractEnum.Hero],
 //   data: createHeroEncoded,
 //   user: this.web3Service.masterAccountAddress,
 //   userNonce: 0,
