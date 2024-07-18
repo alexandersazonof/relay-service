@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { AbiErrorFragment, eth } from 'web3';
 import { GetContractErrorNameDto } from '../relay/dto/get-contract-error-name.dto';
 import { abiErrors } from '../relay/constants';
-import { IContractErrorData } from '../relay/interfaces/contract-error-data.interface';
+import { IContractErrorData } from './interfaces/contract-error-data.interface';
 import { keccak256 } from 'js-sha3';
 import { Providers } from './constants/providers';
 import { ChainEnum } from './constants/chain.enum';

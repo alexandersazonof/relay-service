@@ -13,6 +13,7 @@ import { ChainEnum } from '../web3/constants/chain.enum';
 export class RelayService {
   public sacraRelayContract: Contract<AbiItem[]>;
   public sacraHeroContract: Contract<AbiItem[]>;
+  public testContract: Contract<AbiItem[]>;
 
   constructor(
     private readonly configService: ConfigService,
