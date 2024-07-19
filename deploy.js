@@ -7,7 +7,12 @@ async function main() {
   const Counter = await hre.ethers.getContractFactory("Counter");
   const contract = await Counter.deploy();
   await contract.deployed();
-  console.log("Contract deployed to address:", contract.address);
+  console.log("Contract (Counter) deployed to address:", contract.address);
+
+  const SacraRelay = await hre.ethers.getContractFactory("SacraRelay");
+  const relay = await SacraRelay.deploy();
+  await relay.deployed();
+  console.log("Contract (SacraRelay) deployed to address:", relay.address);
 }
 
 main()
