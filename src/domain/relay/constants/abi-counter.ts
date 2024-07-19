@@ -1,6 +1,6 @@
 import { AbiItem } from 'web3';
 
-export const abiTest: AbiItem[] = [
+export const abiCounter: AbiItem[] = [
   {
     inputs: [],
     name: 'getValue',
