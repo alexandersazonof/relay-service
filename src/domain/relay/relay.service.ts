@@ -23,7 +23,7 @@ export class RelayService {
     public readonly web3Service: Web3Service,
   ) {}
 
-  private chainIdToEnum(chainId: number): ChainEnum | undefined {
+  private chainIdToEnum(chainId: number): ChainEnum {
     switch (chainId) {
       case ChainIdEnum.Fantom:
         return ChainEnum.Fantom;
