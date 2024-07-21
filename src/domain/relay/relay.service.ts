@@ -5,16 +5,21 @@ import { Web3Service } from '../../domain/web3/web3.service';
 import { abiHero, abiRelay } from './constants';
 import { CallFromDelegatorDto } from './dto/call-from-delegator.dto';
 import { CallFromOperatorDto } from './dto/call-from-operator.dto';
-import { secp256k1 } from 'ethereum-cryptography/secp256k1.js';
+import { secp256k1 } from '@noble/curves/secp256k1';
+
 import { bytesToHex } from 'web3-utils';
 import { ChainEnum } from '../web3/constants/chain.enum';
 import { ContractAddresses, ContractEnum } from './constants/contract-address';
+import { LocalStorage } from 'node-localstorage';
 
 @Injectable()
 export class RelayService {
   public sacraRelayContract: Contract<AbiItem[]>;
   public sacraHeroContract: Contract<AbiItem[]>;
   public testContract: Contract<AbiItem[]>;
+
+  private readonly storage = new LocalStorage('./storage');
+  private nonce = this.storage.getItem('nonce') ?? 0;
 
   constructor(
     private readonly configService: ConfigService,
@@ -101,7 +106,7 @@ export class RelayService {
   }
 
   private async createSignatureManually(hashMessage: string, privateKeyUint8Array: Uint8Array) {
-    const signatureSigned = secp256k1.sign(hashMessage, privateKeyUint8Array);
+    const signatureSigned = secp256k1.sign(hashMessage, privateKeyUint8Array); // sign
     const signatureBytes = signatureSigned.toCompactRawBytes();
     const r = (signatureSigned.recovery + 27).toString(16);
 
@@ -182,7 +187,11 @@ export class RelayService {
       from: this.web3Service.masterAccountAddress,
       to: ContractAddresses[ChainEnum.Fantom][ContractEnum.Relay],
       data: txData,
+      nonce: this.nonce,
     };
+
+    this.nonce++;
+    this.storage.set('nonce', this.nonce);
 
     const txHash = await this.web3Service
       .get(ChainEnum.Fantom)
