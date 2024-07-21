@@ -8,14 +8,13 @@ import { CallFromOperatorDto } from './dto/call-from-operator.dto';
 import { secp256k1 } from '@noble/curves/secp256k1';
 import { bytesToHex } from 'web3-utils';
 import { ChainEnum } from '../web3/constants/chain.enum';
-import { ContractAddresses, ContractEnum } from './constants/contract-address';
+import { ContractsDescription, ContractEnum } from './constants/contract-address';
 import { LocalStorage } from 'node-localstorage';
+import { abiCounter } from './constants/abi-counter';
 
 @Injectable()
 export class RelayService {
   public sacraRelayContract: Contract<AbiItem[]>;
-  public sacraHeroContract: Contract<AbiItem[]>;
-  public testContract: Contract<AbiItem[]>;
 
   private readonly storage = new LocalStorage('./storage');
   private nonce = this.storage.getItem('nonce') ?? 0;
@@ -23,17 +22,21 @@ export class RelayService {
   constructor(
     private readonly configService: ConfigService,
     public readonly web3Service: Web3Service,
-  ) {}
+  ) {
+    // const chain = ChainEnum.Hardhat;
+
+    // const counterContract = new (this.web3Service.get(chain).instance.eth.Contract)(
+    //   abiCounter,
+    //   '0x5fbdb2315678afecb367f032d93f642f64180aa3',
+    // );
+
+    // console.log(counterContract.methods.getValue().encodeABI());
+  }
 
   private initializeContracts(chain: ChainEnum) {
-    this.sacraHeroContract = new (this.web3Service.get(chain).instance.eth.Contract)(
-      abiHero,
-      ContractAddresses[chain][ContractEnum.Hero],
-    );
-
     this.sacraRelayContract = new (this.web3Service.get(chain).instance.eth.Contract)(
       abiRelay,
-      ContractAddresses[chain][ContractEnum.Relay],
+      ContractsDescription[chain][ContractEnum.Relay].address,
     );
   }
 
@@ -42,7 +45,9 @@ export class RelayService {
   }
 
   private checkAllowedContractAddress(address: string, chain: ChainEnum) {
-    const contracts = Object.values<string>(ContractAddresses[chain]);
+    const contracts = Object.values(ContractsDescription[chain]).map(
+      (contractDescription) => contractDescription.address,
+    );
     const isKnownContactAddress = contracts.includes(address);
     if (!isKnownContactAddress) {
       throw new InternalServerErrorException(`Contract address ${address} not allowed`);
@@ -140,14 +145,14 @@ export class RelayService {
     const transactionData = this.sacraRelayContract.methods.callFromDelegator(callInfo).encodeABI();
     const gas = await this.web3Service.get(chain).instance.eth.estimateGas({
       from: this.web3Service.masterAccountAddress,
-      to: ContractAddresses[chain][ContractEnum.Relay],
+      to: ContractsDescription[chain][ContractEnum.Relay].address,
       data: transactionData,
     });
 
     const gasPrice = await this.web3Service.get(chain).instance.eth.getGasPrice();
     const tx = {
       from: this.web3Service.masterAccountAddress,
-      to: ContractAddresses[chain][ContractEnum.Relay],
+      to: ContractsDescription[chain][ContractEnum.Relay].address,
       gas: gas,
       gasPrice: gasPrice,
       data: transactionData,
@@ -186,7 +191,7 @@ export class RelayService {
 
     const tx: Transaction = {
       from: this.web3Service.masterAccountAddress,
-      to: ContractAddresses[chain][ContractEnum.Relay],
+      to: ContractsDescription[chain][ContractEnum.Relay].address,
       data: txData,
       nonce: this.nonce,
     };

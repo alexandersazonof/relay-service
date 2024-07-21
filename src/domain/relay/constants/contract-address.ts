@@ -1,4 +1,8 @@
 import { ChainEnum } from 'src/domain/web3/constants/chain.enum';
+import { abiCounter } from './abi-counter';
+import { abiRelay } from './abi-relay';
+import { abiHero } from './abi-hero';
+import { AbiItem } from 'web3';
 
 export enum ContractEnum {
   Relay = 'relay',
@@ -6,13 +10,39 @@ export enum ContractEnum {
   Counter = 'counter',
 }
 
-export const ContractAddresses: Record<ChainEnum, Partial<Record<ContractEnum, string>>> = {
+export const ContractsDescription: Record<
+  ChainEnum,
+  Partial<Record<ContractEnum, { address: string; abi: AbiItem[] }>>
+> = {
   [ChainEnum.Hardhat]: {
-    [ContractEnum.Relay]: '0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512',
-    [ContractEnum.Counter]: '0x5FbDB2315678afecb367f032d93F642f64180aa3',
+    [ContractEnum.Counter]: {
+      address: '0x5fbdb2315678afecb367f032d93f642f64180aa3',
+      abi: abiCounter,
+    },
+    [ContractEnum.Relay]: { address: '0xe7f1725e7734ce288f8367e1bb143e90bb3f0512', abi: abiRelay },
   },
   [ChainEnum.Fantom]: {
-    [ContractEnum.Relay]: '0x52ceba41da235af367bfc0b0ccd3314cb901bb5f',
-    [ContractEnum.Hero]: '0xBe46D95DB685aB3A544D321E196375B737ea6Bc4',
+    [ContractEnum.Relay]: { address: '0x52ceba41da235af367bfc0b0ccd3314cb901bb5f', abi: abiRelay },
+    [ContractEnum.Hero]: { address: '0xBe46D95DB685aB3A544D321E196375B737ea6Bc4', abi: abiHero },
   },
 };
+
+// export const Contracts: Record<ChainEnum, Record<ContractEnum, Contract<AbiItem[]>>> = (() => {
+//   const chains = Object.keys(ContractsDescription);
+
+//   const contractInstances = chains.map((chain) => {
+//     const contracts = Object.keys(ContractsDescription[<ChainEnum>chain]);
+
+//     const contractInstances = contracts.map((contractName) => {
+//       const description = ContractsDescription[<ChainEnum>chain][<ContractEnum>contractName];
+
+//       const contractInstance = new Contract(description.abi, description.address);
+
+//       return { [contractName]: contractInstance };
+//     });
+
+//     return { [chain]: Object.assign({}, ...contractInstances) };
+//   });
+
+//   return Object.assign({}, ...contractInstances);
+// })();
