@@ -13,8 +13,4 @@ export class CallFromDelegatorDto {
   @IsNotEmpty()
   @IsString()
   data: string;
-
-  @IsOptional()
-  @IsString()
-  chain?: ChainEnum;
 }

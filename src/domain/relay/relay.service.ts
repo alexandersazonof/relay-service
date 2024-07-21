@@ -2,15 +2,14 @@ import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AbiItem, Contract, Transaction, utils } from 'web3';
 import { Web3Service } from '../../domain/web3/web3.service';
-import { abiHero, abiRelay } from './constants';
+import { abiRelay } from './constants';
 import { CallFromDelegatorDto } from './dto/call-from-delegator.dto';
 import { CallFromOperatorDto } from './dto/call-from-operator.dto';
 import { secp256k1 } from '@noble/curves/secp256k1';
 import { bytesToHex } from 'web3-utils';
-import { ChainEnum } from '../web3/constants/chain.enum';
+import { ChainEnum, ChainIdEnum } from '../web3/constants/chain.enum';
 import { ContractsDescription, ContractEnum } from './constants/contract-address';
 import { LocalStorage } from 'node-localstorage';
-import { abiCounter } from './constants/abi-counter';
 
 @Injectable()
 export class RelayService {
@@ -22,15 +21,17 @@ export class RelayService {
   constructor(
     private readonly configService: ConfigService,
     public readonly web3Service: Web3Service,
-  ) {
-    // const chain = ChainEnum.Hardhat;
+  ) {}
 
-    // const counterContract = new (this.web3Service.get(chain).instance.eth.Contract)(
-    //   abiCounter,
-    //   '0x5fbdb2315678afecb367f032d93f642f64180aa3',
-    // );
-
-    // console.log(counterContract.methods.getValue().encodeABI());
+  private chainIdToEnum(chainId: number): ChainEnum | undefined {
+    switch (chainId) {
+      case ChainIdEnum.Fantom:
+        return ChainEnum.Fantom;
+      case ChainIdEnum.Hardhat:
+        return ChainEnum.Hardhat;
+      default:
+        throw new Error(`Unsupported chainId: ${chainId}`);
+    }
   }
 
   private initializeContracts(chain: ChainEnum) {
@@ -40,11 +41,7 @@ export class RelayService {
     );
   }
 
-  public checkAllowedContractAddressWrapper(address: string, chain: ChainEnum): boolean {
-    return this.checkAllowedContractAddress(address, chain);
-  }
-
-  private checkAllowedContractAddress(address: string, chain: ChainEnum) {
+  private checkAllowedContractAddress(chain: ChainEnum, address: string) {
     const contracts = Object.values(ContractsDescription[chain]).map(
       (contractDescription) => contractDescription.address,
     );
@@ -55,7 +52,7 @@ export class RelayService {
     return true;
   }
 
-  async getHashedMessage(callInfo: CallFromOperatorDto, chain: ChainEnum) {
+  async getHashedMessage(chain: ChainEnum, callInfo: CallFromOperatorDto) {
     this.initializeContracts(chain);
 
     const CALL_ERC2771_TYPEHASH: string = await this.sacraRelayContract.methods
@@ -118,7 +115,7 @@ export class RelayService {
     privateKey: string,
     chain: ChainEnum,
   ) {
-    const { hashedMessage } = await this.getHashedMessage(callInfo, chain);
+    const { hashedMessage } = await this.getHashedMessage(chain, callInfo);
     const messageHexWithoutPrefix = hashedMessage.substring(2);
 
     const privateKeyUint8Array = this.web3Service
@@ -128,11 +125,7 @@ export class RelayService {
     return this.createSignatureManually(messageHexWithoutPrefix, privateKeyUint8Array);
   }
 
-  async callFromDelegator(callFromDelegatorDto: CallFromDelegatorDto, chain: ChainEnum) {
-    this.initializeContracts(chain);
-
-    this.checkAllowedContractAddress(callFromDelegatorDto.target, chain);
-
+  async callFromDelegator(callFromDelegatorDto: CallFromDelegatorDto) {
     const callInfo = {
       chainId: 250,
       target: callFromDelegatorDto.target,
@@ -141,6 +134,12 @@ export class RelayService {
       userNonce: 1,
       userDeadline: 0,
     };
+
+    const chain = this.chainIdToEnum(callInfo.chainId);
+
+    this.initializeContracts(chain);
+
+    this.checkAllowedContractAddress(chain, callFromDelegatorDto.target);
 
     const transactionData = this.sacraRelayContract.methods.callFromDelegator(callInfo).encodeABI();
     const gas = await this.web3Service.get(chain).instance.eth.estimateGas({
@@ -169,10 +168,11 @@ export class RelayService {
     return { success: true };
   }
 
-  async callFromOperator(callFromOperatorDto: CallFromOperatorDto, chain: ChainEnum) {
+  async callFromOperator(callFromOperatorDto: CallFromOperatorDto) {
+    const chain = this.chainIdToEnum(callFromOperatorDto.chainId);
     this.initializeContracts(chain);
 
-    this.checkAllowedContractAddress(callFromOperatorDto.target, chain);
+    this.checkAllowedContractAddress(chain, callFromOperatorDto.target);
 
     const callInfo = {
       chainId: callFromOperatorDto.chainId,
@@ -211,27 +211,24 @@ export class RelayService {
 
   async userCallFromOperator(
     callFromOperatorDto: CallFromOperatorDto,
-    chain: ChainEnum,
     userPrivateKey: string = this.web3Service.masterAccountPrivateKey,
   ) {
+    const chain = this.chainIdToEnum(callFromOperatorDto.chainId);
     const signature = await this.signCallWithERC2771(callFromOperatorDto, userPrivateKey, chain);
 
-    const result = await this.callFromOperator(
-      {
-        chainId: callFromOperatorDto.chainId,
+    const result = await this.callFromOperator({
+      chainId: callFromOperatorDto.chainId,
 
-        fromAddress: this.web3Service.masterAccountAddress,
+      fromAddress: this.web3Service.masterAccountAddress,
 
-        target: callFromOperatorDto.target,
-        data: callFromOperatorDto.data,
+      target: callFromOperatorDto.target,
+      data: callFromOperatorDto.data,
 
-        userNonce: callFromOperatorDto.userNonce,
-        userDeadline: callFromOperatorDto.userDeadline,
+      userNonce: callFromOperatorDto.userNonce,
+      userDeadline: callFromOperatorDto.userDeadline,
 
-        signature: signature,
-      },
-      chain,
-    ).catch((error) => error);
+      signature: signature,
+    }).catch((error) => error);
 
     return result;
   }

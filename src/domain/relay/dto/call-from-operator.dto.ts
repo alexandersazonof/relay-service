@@ -29,8 +29,4 @@ export class CallFromOperatorDto {
   @IsOptional()
   @IsNumber()
   userDeadline: number = 0;
-
-  @IsOptional()
-  @IsString()
-  chain?: ChainEnum;
 }

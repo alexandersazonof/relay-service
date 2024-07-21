@@ -17,17 +17,17 @@ export class RelayController {
   @Post('/call-from-delegator')
   @HttpCode(HttpStatus.OK)
   callFromDelegator(@Body() callFromDelegatorDto: CallFromDelegatorDto) {
-    return this.relayService.callFromDelegator(callFromDelegatorDto, callFromDelegatorDto.chain);
+    return this.relayService.callFromDelegator(callFromDelegatorDto);
   }
 
   @Post('/call-from-operator')
   @HttpCode(HttpStatus.OK)
   callFromOperator(@Body() callFromOperatorDto: CallFromOperatorDto) {
-    return this.relayService.callFromOperator(callFromOperatorDto, callFromOperatorDto.chain);
+    return this.relayService.callFromOperator(callFromOperatorDto);
   }
 
   @Post('/user-call-from-operator')
   async userCallFromOperator(@Body() callFromOperatorDto: CallFromOperatorDto) {
-    return this.relayService.userCallFromOperator(callFromOperatorDto, callFromOperatorDto.chain);
+    return this.relayService.userCallFromOperator(callFromOperatorDto);
   }
 }
