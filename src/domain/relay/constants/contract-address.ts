@@ -28,21 +28,24 @@ export const ContractsDescription: Record<
 };
 
 // export const Contracts: Record<ChainEnum, Record<ContractEnum, Contract<AbiItem[]>>> = (() => {
-//   const chains = Object.keys(ContractsDescription);
+//   const chainsContractsDesctiption = Object.keys(ContractsDescription);
 
-//   const contractInstances = chains.map((chain) => {
-//     const contracts = Object.keys(ContractsDescription[<ChainEnum>chain]);
+//   const contractsChain = chainsContractsDesctiption.map((chainContractDescription) => {
+//     const chainContractsNames = Object.keys(
+//       ContractsDescription[<ChainEnum>chainContractDescription],
+//     );
 
-//     const contractInstances = contracts.map((contractName) => {
-//       const description = ContractsDescription[<ChainEnum>chain][<ContractEnum>contractName];
+//     const contractInstances = chainContractsNames.map((contractName) => {
+//       const description =
+//         ContractsDescription[<ChainEnum>chainContractDescription][<ContractEnum>contractName];
 
 //       const contractInstance = new Contract(description.abi, description.address);
 
 //       return { [contractName]: contractInstance };
 //     });
 
-//     return { [chain]: Object.assign({}, ...contractInstances) };
+//     return { [chainContractDescription]: Object.assign({}, ...contractInstances) };
 //   });
 
-//   return Object.assign({}, ...contractInstances);
+//   return Object.assign({}, ...contractsChain);
 // })();
