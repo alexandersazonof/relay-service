@@ -1,4 +1,5 @@
 import { IsNotEmpty, IsNumber, IsOptional, IsString } from 'class-validator';
+import { ChainEnum } from 'src/domain/web3/constants/chain.enum';
 
 export class CallFromOperatorDto {
   @IsOptional()
@@ -31,5 +32,5 @@ export class CallFromOperatorDto {
 
   @IsOptional()
   @IsString()
-  userPrivateKey?: string;
+  chain?: ChainEnum;
 }
