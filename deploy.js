@@ -14,7 +14,7 @@ async function main() {
   console.log('Deploying contracts with the account:', deployer.address);
 
   await deployContract('Counter');
-  await deployContract('SacraRelay');
+  await deployContract('SacraRelay', '0x70997970C51812dc3A010C7d01b50e0d17dc79C8');
 }
 
 main()

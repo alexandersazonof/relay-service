@@ -50,9 +50,8 @@ contract SacraRelay {
 
     //region ------------------------ Constructor
 
-    constructor() {
-        owner = address(0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266);
-
+    constructor(address _owner) {
+        owner = _owner;
         DOMAIN_SEPARATOR = keccak256(
             abi.encode(
                 keccak256(
