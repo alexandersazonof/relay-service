@@ -32,7 +32,8 @@ export class Web3Service {
     }
 
     if (!this.cachedWeb3Instances[provider.name]) {
-      this.cachedWeb3Instances[provider.name] = new Web3(provider.rpcUrl);
+      const httpProvider = new Web3.providers.HttpProvider(provider.rpcUrl);
+      this.cachedWeb3Instances[provider.name] = new Web3(httpProvider);
     }
 
     return {

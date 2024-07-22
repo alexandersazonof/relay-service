@@ -91,6 +91,11 @@ export class RelayService {
     callFromOperatorDto: CallFromOperatorDto,
     userPrivateKey: string = this.web3Service.masterAccountPrivateKey,
   ) {
+    const counterContract = this.getCounterContract(callFromOperatorDto.chainId);
+    callFromOperatorDto.data = counterContract.methods
+      .getValue()
+      .encodeABI(); /* TODO remove data mock */
+
     const signature = await this.signCallWithERC2771(
       callFromOperatorDto,
       userPrivateKey,
@@ -118,7 +123,15 @@ export class RelayService {
 
   private getSacraRelayContract(chainId: number) {
     const chain = this.web3Service.getProvider(chainId);
-    return chain.provider.contracts.sacraRelay.contract;
+    const { abi, address } = chain.provider.contracts.sacraRelay;
+    return new chain.instance.eth.Contract(abi, address);
+  }
+
+  /* TODO REMOVE THIS SHIT */
+  private getCounterContract(chainId: number) {
+    const chain = this.web3Service.getProvider(chainId);
+    const { abi, address } = chain.provider.contracts.counter;
+    return new chain.instance.eth.Contract(abi, address);
   }
 
   private CALL_ERC2771_TYPEHASH(chainId: number) {
