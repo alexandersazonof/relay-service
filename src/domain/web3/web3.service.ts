@@ -1,34 +1,44 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { AbiErrorFragment, eth } from 'web3';
-import { GetContractErrorNameDto } from '../relay/dto/get-contract-error-name.dto';
-import { abiErrors } from '../relay/constants';
-import { IContractErrorData } from './interfaces/contract-error-data.interface';
+import { AbiErrorFragment, eth, Web3 } from 'web3';
 import { keccak256 } from 'js-sha3';
-import { Providers } from './constants/providers';
-import { ChainEnum } from './constants/chain.enum';
-import { Provider } from './providers/provider';
+import { IContractErrorData } from './interfaces/contract-error-data.interface';
+import { GetContractErrorNameDto } from './dto/get-contract-error-name.dto';
+import { chains } from './constants/chains';
+import { abiErrors } from './constants/abi-errors';
+
+interface ICachedWeb3Instances {
+  [chainName: string]: Web3;
+}
 
 @Injectable()
 export class Web3Service {
-  public readonly providers = new Map<ChainEnum, Provider>();
-
   public readonly masterAccountAddress: string;
   public readonly masterAccountPrivateKey: string;
+
+  private readonly cachedWeb3Instances: ICachedWeb3Instances = {};
+  private readonly providers = chains;
 
   constructor(private readonly configService: ConfigService) {
     this.masterAccountAddress = configService.get('ACCOUNT_ADDRESS');
     this.masterAccountPrivateKey = configService.get('PRIVATE_KEY');
-
-    for (const chain of Object.values(ChainEnum)) {
-      const provider = Providers[chain as unknown as ChainEnum];
-
-      this.providers.set(chain as unknown as ChainEnum, new provider());
-    }
   }
 
-  get<T extends ChainEnum>(chainId: T) {
-    return this.providers.get(chainId);
+  getProvider(providerId: number) {
+    const provider = this.providers.get(providerId);
+
+    if (!provider) {
+      throw new NotFoundException('Provider not found');
+    }
+
+    if (!this.cachedWeb3Instances[provider.name]) {
+      this.cachedWeb3Instances[provider.name] = new Web3(provider.rpcUrl);
+    }
+
+    return {
+      instance: this.cachedWeb3Instances[provider.name],
+      provider: provider,
+    };
   }
 
   async getContractErrorNameByHex(getContractErrorNameDto: GetContractErrorNameDto) {

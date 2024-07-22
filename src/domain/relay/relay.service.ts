@@ -1,14 +1,10 @@
 import { Injectable, InternalServerErrorException } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { AbiItem, Contract, Transaction, utils } from 'web3';
-import { Web3Service } from '../../domain/web3/web3.service';
-import { abiRelay } from './constants';
+import { AbiItem, Contract, eth, Transaction, utils } from 'web3';
+import { Web3Service } from '../web3/web3.service';
 import { CallFromDelegatorDto } from './dto/call-from-delegator.dto';
 import { CallFromOperatorDto } from './dto/call-from-operator.dto';
 import { secp256k1 } from '@noble/curves/secp256k1';
 import { bytesToHex } from 'web3-utils';
-import { ChainEnum, ChainIdEnum } from '../web3/constants/chain.enum';
-import { ContractsDescription, ContractEnum } from './constants/contract-address';
 import { LocalStorage } from 'node-localstorage';
 
 @Injectable()
@@ -16,45 +12,11 @@ export class RelayService {
   public sacraRelayContract: Contract<AbiItem[]>;
 
   private readonly storage = new LocalStorage('./storage');
-  private nonce = this.storage.getItem('nonce') ?? 0;
+  private nonce = Number(this.storage.getItem('nonce'));
 
-  constructor(
-    private readonly configService: ConfigService,
-    public readonly web3Service: Web3Service,
-  ) {}
+  constructor(public readonly web3Service: Web3Service) {}
 
-  private chainIdToEnum(chainId: number): ChainEnum {
-    switch (chainId) {
-      case ChainIdEnum.Fantom:
-        return ChainEnum.Fantom;
-      case ChainIdEnum.Hardhat:
-        return ChainEnum.Hardhat;
-      default:
-        throw new Error(`Unsupported chainId: ${chainId}`);
-    }
-  }
-
-  private initializeContracts(chain: ChainEnum) {
-    this.sacraRelayContract = new (this.web3Service.get(chain).instance.eth.Contract)(
-      abiRelay,
-      ContractsDescription[chain][ContractEnum.Relay].address,
-    );
-  }
-
-  private checkAllowedContractAddress(chain: ChainEnum, address: string) {
-    const contracts = Object.values(ContractsDescription[chain]).map(
-      (contractDescription) => contractDescription.address,
-    );
-    const isKnownContactAddress = contracts.includes(address);
-    if (!isKnownContactAddress) {
-      throw new InternalServerErrorException(`Contract address ${address} not allowed`);
-    }
-    return true;
-  }
-
-  async getHashedMessage(chain: ChainEnum, callInfo: CallFromOperatorDto) {
-    this.initializeContracts(chain);
-
+  async getHashedMessage(callInfo: CallFromOperatorDto) {
     const CALL_ERC2771_TYPEHASH: string = await this.sacraRelayContract.methods
       .CALL_ERC2771_TYPEHASH()
       .call();
@@ -62,20 +24,18 @@ export class RelayService {
       .DOMAIN_SEPARATOR()
       .call();
 
-    const encodedParameters = this.web3Service
-      .get(chain)
-      .instance.eth.abi.encodeParameters(
-        ['bytes32', 'uint256', 'address', 'bytes32', 'address', 'uint256', 'uint256'],
-        [
-          CALL_ERC2771_TYPEHASH,
-          callInfo.chainId,
-          callInfo.target,
-          utils.soliditySha3({ type: 'bytes', value: callInfo.data }),
-          callInfo.fromAddress,
-          callInfo.userNonce,
-          callInfo.userDeadline,
-        ],
-      );
+    const encodedParameters = eth.abi.encodeParameters(
+      ['bytes32', 'uint256', 'address', 'bytes32', 'address', 'uint256', 'uint256'],
+      [
+        CALL_ERC2771_TYPEHASH,
+        callInfo.chainId,
+        callInfo.target,
+        utils.soliditySha3({ type: 'bytes', value: callInfo.data }),
+        callInfo.fromAddress,
+        callInfo.userNonce,
+        callInfo.userDeadline,
+      ],
+    );
 
     const message = utils.soliditySha3({
       type: 'bytes',
@@ -113,21 +73,21 @@ export class RelayService {
   private async signCallWithERC2771(
     callInfo: CallFromOperatorDto,
     privateKey: string,
-    chain: ChainEnum,
+    chainId: number,
   ) {
-    const { hashedMessage } = await this.getHashedMessage(chain, callInfo);
-    const messageHexWithoutPrefix = hashedMessage.substring(2);
+    const chain = this.web3Service.getProvider(chainId);
 
-    const privateKeyUint8Array = this.web3Service
-      .get(chain)
-      .instance.eth.accounts.parseAndValidatePrivateKey(privateKey);
+    const { hashedMessage } = await this.getHashedMessage(callInfo);
+    const messageHexWithoutPrefix = hashedMessage.substring(2);
+    const privateKeyUint8Array = chain.instance.eth.accounts.parseAndValidatePrivateKey(privateKey);
 
     return this.createSignatureManually(messageHexWithoutPrefix, privateKeyUint8Array);
   }
 
   async callFromDelegator(callFromDelegatorDto: CallFromDelegatorDto) {
+    const chain = this.web3Service.getProvider(callFromDelegatorDto.chainId);
     const callInfo = {
-      chainId: 250,
+      chainId: callFromDelegatorDto.chainId,
       target: callFromDelegatorDto.target,
       data: callFromDelegatorDto.data,
       user: callFromDelegatorDto.fromAddress,
@@ -135,44 +95,41 @@ export class RelayService {
       userDeadline: 0,
     };
 
-    const chain = this.chainIdToEnum(callInfo.chainId);
+    this.checkAllowedContractAddress(callInfo.chainId, callFromDelegatorDto.target);
 
-    this.initializeContracts(chain);
-
-    this.checkAllowedContractAddress(chain, callFromDelegatorDto.target);
-
-    const transactionData = this.sacraRelayContract.methods.callFromDelegator(callInfo).encodeABI();
-    const gas = await this.web3Service.get(chain).instance.eth.estimateGas({
+    const transactionDataABI = this.sacraRelayContract.methods
+      .callFromDelegator(callInfo)
+      .encodeABI();
+    const transactionBody = {
       from: this.web3Service.masterAccountAddress,
-      to: ContractsDescription[chain][ContractEnum.Relay].address,
-      data: transactionData,
-    });
-
-    const gasPrice = await this.web3Service.get(chain).instance.eth.getGasPrice();
-    const tx = {
-      from: this.web3Service.masterAccountAddress,
-      to: ContractsDescription[chain][ContractEnum.Relay].address,
-      gas: gas,
-      gasPrice: gasPrice,
-      data: transactionData,
+      to: chain.provider.contracts.sacraRelay.address,
+      data: transactionDataABI,
     };
 
-    const signedTx = await this.web3Service
-      .get(chain)
-      .instance.eth.accounts.signTransaction(tx, this.web3Service.masterAccountPrivateKey);
+    const gas = await chain.instance.eth.estimateGas(transactionBody);
+    const gasPrice = await chain.instance.eth.getGasPrice();
+    const tx = {
+      ...transactionBody,
+      gas: gas,
+      gasPrice: gasPrice,
+    };
+
+    const signedTx = await chain.instance.eth.accounts.signTransaction(
+      tx,
+      this.web3Service.masterAccountPrivateKey,
+    );
     if (!signedTx.rawTransaction) {
       throw new InternalServerErrorException(`Signing failed`);
     }
 
-    await this.web3Service.get(chain).instance.eth.sendSignedTransaction(signedTx.rawTransaction);
+    await chain.instance.eth.sendSignedTransaction(signedTx.rawTransaction);
     return { success: true };
   }
 
   async callFromOperator(callFromOperatorDto: CallFromOperatorDto) {
-    const chain = this.chainIdToEnum(callFromOperatorDto.chainId);
-    this.initializeContracts(chain);
+    const chain = this.web3Service.getProvider(callFromOperatorDto.chainId);
 
-    this.checkAllowedContractAddress(chain, callFromOperatorDto.target);
+    this.checkAllowedContractAddress(callFromOperatorDto.chainId, callFromOperatorDto.target);
 
     const callInfo = {
       chainId: callFromOperatorDto.chainId,
@@ -182,54 +139,51 @@ export class RelayService {
       userNonce: 0,
       userDeadline: 0,
     };
-
-    console.log('[callInfo, signature]', callInfo, callFromOperatorDto.signature);
-
-    const txData = this.sacraRelayContract.methods
+    const transactionDataABI = this.sacraRelayContract.methods
       .callFromOperator(callInfo, callFromOperatorDto.signature)
       .encodeABI();
 
-    const tx: Transaction = {
+    const transactionBody: Transaction = {
       from: this.web3Service.masterAccountAddress,
-      to: ContractsDescription[chain][ContractEnum.Relay].address,
-      data: txData,
+      to: chain.provider.contracts.sacraRelay.address,
+      data: transactionDataABI,
       nonce: this.nonce,
     };
 
     this.nonce++;
     this.storage.setItem('nonce', this.nonce.toString());
 
-    const txHash = await this.web3Service
-      .get(chain)
-      .instance.eth.sendTransaction({
-        ...tx,
-      })
-      .catch((error) => error);
-
-    return txHash;
+    return await chain.instance.eth.sendTransaction(transactionBody).catch((error) => error);
   }
 
   async userCallFromOperator(
     callFromOperatorDto: CallFromOperatorDto,
     userPrivateKey: string = this.web3Service.masterAccountPrivateKey,
   ) {
-    const chain = this.chainIdToEnum(callFromOperatorDto.chainId);
-    const signature = await this.signCallWithERC2771(callFromOperatorDto, userPrivateKey, chain);
+    const signature = await this.signCallWithERC2771(
+      callFromOperatorDto,
+      userPrivateKey,
+      callFromOperatorDto.chainId,
+    );
 
-    const result = await this.callFromOperator({
+    return await this.callFromOperator({
       chainId: callFromOperatorDto.chainId,
-
       fromAddress: this.web3Service.masterAccountAddress,
-
       target: callFromOperatorDto.target,
       data: callFromOperatorDto.data,
-
       userNonce: callFromOperatorDto.userNonce,
       userDeadline: callFromOperatorDto.userDeadline,
-
       signature: signature,
     }).catch((error) => error);
+  }
 
-    return result;
+  private checkAllowedContractAddress(chainId: number, address: string) {
+    const chain = this.web3Service.getProvider(chainId);
+    const contractsAddress = Object.values(chain.provider.contracts).map(({ address }) => address);
+    const isKnownContactAddress = contractsAddress.includes(address);
+    if (!isKnownContactAddress) {
+      throw new InternalServerErrorException(`Contract address ${address} not allowed`);
+    }
+    return true;
   }
 }

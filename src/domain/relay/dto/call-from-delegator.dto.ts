@@ -1,7 +1,10 @@
-import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
-import { ChainEnum } from 'src/domain/web3/constants/chain.enum';
+import { IsNotEmpty, IsNumber, IsOptional, IsString } from 'class-validator';
 
 export class CallFromDelegatorDto {
+  @IsOptional()
+  @IsNumber()
+  chainId: number = 250;
+
   @IsNotEmpty()
   @IsString()
   fromAddress: string;

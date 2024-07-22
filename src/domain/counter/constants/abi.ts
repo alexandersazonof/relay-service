@@ -1,6 +1,6 @@
 import { AbiItem } from 'web3';
 
-export const abiCounter: AbiItem[] = [
+export const abi: AbiItem[] = [
   {
     inputs: [],
     name: 'getValue',
@@ -28,4 +28,4 @@ export const abiCounter: AbiItem[] = [
     stateMutability: 'nonpayable',
     type: 'function',
   },
-];
+] as AbiItem[];

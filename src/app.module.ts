@@ -6,7 +6,6 @@ import { RelayModule } from './domain/relay/relay.module';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true, validationSchema: EnvConfigValidation }),
-
     RelayModule,
   ],
 })
