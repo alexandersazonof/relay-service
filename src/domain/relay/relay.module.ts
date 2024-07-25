@@ -1,10 +1,10 @@
 import { Module } from '@nestjs/common';
-import { Web3Module } from 'src/domain/web3/web3.module';
+import { Web3ManagerModule } from 'src/common/web3-manager/web3-manager.module';
 import { RelayController } from './relay.controller';
 import { RelayService } from './relay.service';
 
 @Module({
-  imports: [Web3Module],
+  imports: [Web3ManagerModule],
   controllers: [RelayController],
   providers: [RelayService],
 })

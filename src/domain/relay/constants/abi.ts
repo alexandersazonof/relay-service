@@ -2,13 +2,7 @@ import { AbiItem } from 'web3';
 
 export const abi: AbiItem[] = [
   {
-    inputs: [
-      {
-        internalType: 'address',
-        name: '_owner',
-        type: 'address',
-      },
-    ],
+    inputs: [],
     stateMutability: 'nonpayable',
     type: 'constructor',
   },
@@ -261,19 +255,6 @@ export const abi: AbiItem[] = [
         internalType: 'address[]',
         name: '',
         type: 'address[]',
-      },
-    ],
-    stateMutability: 'view',
-    type: 'function',
-  },
-  {
-    inputs: [],
-    name: 'owner',
-    outputs: [
-      {
-        internalType: 'address',
-        name: '',
-        type: 'address',
       },
     ],
     stateMutability: 'view',

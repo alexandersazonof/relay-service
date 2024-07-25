@@ -3,11 +3,11 @@ import { IsNotEmpty, IsNumber, IsOptional, IsString } from 'class-validator';
 export class CallFromDelegatorDto {
   @IsOptional()
   @IsNumber()
-  chainId: number = 250;
+  chainId: number;
 
   @IsNotEmpty()
   @IsString()
-  fromAddress: string;
+  user: string;
 
   @IsNotEmpty()
   @IsString()
