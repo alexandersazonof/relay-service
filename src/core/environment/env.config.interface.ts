@@ -1,8 +1,7 @@
 export interface IEnvConfig {
   /* BLOCKCHAIN DATA */
-  CHAIN_NAME: string;
-  RPC_URL: string;
   CHAIN_ID: number;
+  CHAIN_RPC_URL: string;
 
   /* CHAIN CONTRACTS */
   SACRA_RELAY_CONTRACT_ADDRESS: string;

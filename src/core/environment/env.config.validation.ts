@@ -2,9 +2,8 @@ import * as Joi from 'joi';
 import { IEnvConfig } from './env.config.interface';
 export const EnvConfigValidation: Joi.ObjectSchema<IEnvConfig> = Joi.object({
   /* BLOCKCHAIN DATA */
-  CHAIN_NAME: Joi.string().required(),
-  RPC_URL: Joi.string().required(),
   CHAIN_ID: Joi.number().required(),
+  CHAIN_RPC_URL: Joi.string().required(),
 
   /* CHAIN CONTRACTS */
   SACRA_RELAY_CONTRACT_ADDRESS: Joi.string()

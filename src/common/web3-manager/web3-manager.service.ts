@@ -1,25 +1,23 @@
 import { Injectable } from '@nestjs/common';
-import Web3 from 'web3';
 import { ConfigService } from '@nestjs/config';
+import Web3 from 'web3';
 
 @Injectable()
 export class Web3ManagerService {
+  public readonly defaultAccountAddress: string;
+  public readonly chainId: number;
   public readonly web3: Web3;
-  public readonly defaultChainId: number;
 
   constructor(private readonly configService: ConfigService) {
-    const masterAccountAddress = configService.get<string>('ACCOUNT_ADDRESS');
+    this.defaultAccountAddress = configService.get<string>('ACCOUNT_ADDRESS');
     const masterAccountPrivateKey = configService.get<string>('PRIVATE_KEY');
-    const rpcUrl = this.configService.get<string>('RPC_URL');
 
-    this.web3 = new Web3(new Web3.providers.HttpProvider(rpcUrl));
+    const chainId = configService.get<string>('CHAIN_ID');
+    const chainRpcUrl = configService.get<string>('CHAIN_RPC_URL');
+
+    this.chainId = Number(chainId);
+    this.web3 = new Web3(new Web3.providers.HttpProvider(chainRpcUrl));
     this.web3.eth.accounts.wallet.add(masterAccountPrivateKey);
-    this.web3.eth.defaultAccount = masterAccountAddress;
-
-    this.defaultChainId = Number(this.configService.get<string>('CHAIN_ID'));
-  }
-
-  public get defaultAccountAddress(): string {
-    return this.web3.eth.defaultAccount;
+    this.web3.eth.defaultAccount = this.defaultAccountAddress;
   }
 }

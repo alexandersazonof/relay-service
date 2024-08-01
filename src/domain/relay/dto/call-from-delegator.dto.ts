@@ -1,10 +1,6 @@
-import { IsNotEmpty, IsNumber, IsOptional, IsString } from 'class-validator';
+import { IsInt, IsNotEmpty, IsString, Min } from 'class-validator';
 
 export class CallFromDelegatorDto {
-  @IsOptional()
-  @IsNumber()
-  chainId: number;
-
   @IsNotEmpty()
   @IsString()
   user: string;
@@ -16,4 +12,12 @@ export class CallFromDelegatorDto {
   @IsNotEmpty()
   @IsString()
   data: string;
+
+  @IsInt()
+  @Min(0)
+  userNonce: number;
+
+  @IsInt()
+  @Min(0)
+  userDeadline: number;
 }
