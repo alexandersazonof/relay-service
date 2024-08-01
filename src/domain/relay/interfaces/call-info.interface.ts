@@ -1,4 +1,4 @@
-export interface CallInfo {
+export interface ICallInfo {
   chainId: number;
   target: string;
   data: string;
