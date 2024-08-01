@@ -2,7 +2,13 @@ import { AbiItem } from 'web3';
 
 export const abi: AbiItem[] = [
   {
-    inputs: [],
+    inputs: [
+      {
+        internalType: 'address',
+        name: 'owner_',
+        type: 'address',
+      },
+    ],
     stateMutability: 'nonpayable',
     type: 'constructor',
   },
@@ -25,6 +31,11 @@ export const abi: AbiItem[] = [
   {
     inputs: [],
     name: 'SacraRelayDeadline',
+    type: 'error',
+  },
+  {
+    inputs: [],
+    name: 'SacraRelayDelegationExpired',
     type: 'error',
   },
   {
@@ -87,7 +98,17 @@ export const abi: AbiItem[] = [
   },
   {
     inputs: [],
+    name: 'SacraRelayNotDelegator',
+    type: 'error',
+  },
+  {
+    inputs: [],
     name: 'SacraRelayNotOperator',
+    type: 'error',
+  },
+  {
+    inputs: [],
+    name: 'SacraRelayNotOwner',
     type: 'error',
   },
   {
@@ -105,6 +126,96 @@ export const abi: AbiItem[] = [
     ],
     name: 'SacraRelayUnexpectedReturnData',
     type: 'error',
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        components: [
+          {
+            internalType: 'uint256',
+            name: 'chainId',
+            type: 'uint256',
+          },
+          {
+            internalType: 'address',
+            name: 'target',
+            type: 'address',
+          },
+          {
+            internalType: 'bytes',
+            name: 'data',
+            type: 'bytes',
+          },
+          {
+            internalType: 'address',
+            name: 'user',
+            type: 'address',
+          },
+          {
+            internalType: 'uint256',
+            name: 'userNonce',
+            type: 'uint256',
+          },
+          {
+            internalType: 'uint256',
+            name: 'userDeadline',
+            type: 'uint256',
+          },
+        ],
+        indexed: false,
+        internalType: 'struct SacraRelay.CallWithERC2771',
+        name: 'callData',
+        type: 'tuple',
+      },
+    ],
+    name: 'CalledFromDelegator',
+    type: 'event',
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        components: [
+          {
+            internalType: 'uint256',
+            name: 'chainId',
+            type: 'uint256',
+          },
+          {
+            internalType: 'address',
+            name: 'target',
+            type: 'address',
+          },
+          {
+            internalType: 'bytes',
+            name: 'data',
+            type: 'bytes',
+          },
+          {
+            internalType: 'address',
+            name: 'user',
+            type: 'address',
+          },
+          {
+            internalType: 'uint256',
+            name: 'userNonce',
+            type: 'uint256',
+          },
+          {
+            internalType: 'uint256',
+            name: 'userDeadline',
+            type: 'uint256',
+          },
+        ],
+        indexed: false,
+        internalType: 'struct SacraRelay.CallWithERC2771',
+        name: 'callData',
+        type: 'tuple',
+      },
+    ],
+    name: 'CalledFromOperator',
+    type: 'event',
   },
   {
     inputs: [],
@@ -191,8 +302,59 @@ export const abi: AbiItem[] = [
     type: 'function',
   },
   {
-    inputs: [],
+    inputs: [
+      {
+        internalType: 'bool',
+        name: 'status',
+        type: 'bool',
+      },
+    ],
     name: 'approve',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [
+      {
+        components: [
+          {
+            internalType: 'uint256',
+            name: 'chainId',
+            type: 'uint256',
+          },
+          {
+            internalType: 'address',
+            name: 'target',
+            type: 'address',
+          },
+          {
+            internalType: 'bytes',
+            name: 'data',
+            type: 'bytes',
+          },
+          {
+            internalType: 'address',
+            name: 'user',
+            type: 'address',
+          },
+          {
+            internalType: 'uint256',
+            name: 'userNonce',
+            type: 'uint256',
+          },
+          {
+            internalType: 'uint256',
+            name: 'userDeadline',
+            type: 'uint256',
+          },
+        ],
+        internalType: 'struct SacraRelay.CallWithERC2771',
+        name: 'callInfo',
+        type: 'tuple',
+      },
+    ],
+    name: 'callFromDelegator',
     outputs: [],
     stateMutability: 'nonpayable',
     type: 'function',
@@ -248,8 +410,103 @@ export const abi: AbiItem[] = [
     type: 'function',
   },
   {
+    inputs: [
+      {
+        internalType: 'address',
+        name: 'operator',
+        type: 'address',
+      },
+      {
+        internalType: 'bool',
+        name: 'add',
+        type: 'bool',
+      },
+    ],
+    name: 'changeOperator',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [
+      {
+        internalType: 'address',
+        name: 'newOwner',
+        type: 'address',
+      },
+    ],
+    name: 'changeOwner',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [
+      {
+        internalType: 'address',
+        name: 'user',
+        type: 'address',
+      },
+    ],
+    name: 'closeDelegation',
+    outputs: [],
+    stateMutability: 'payable',
+    type: 'function',
+  },
+  {
+    inputs: [
+      {
+        internalType: 'address',
+        name: 'delegator',
+        type: 'address',
+      },
+    ],
+    name: 'delegate',
+    outputs: [],
+    stateMutability: 'payable',
+    type: 'function',
+  },
+  {
+    inputs: [
+      {
+        internalType: 'address',
+        name: '',
+        type: 'address',
+      },
+    ],
+    name: 'delegatedCallers',
+    outputs: [
+      {
+        internalType: 'address',
+        name: '',
+        type: 'address',
+      },
+    ],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [
+      {
+        internalType: 'address',
+        name: '',
+        type: 'address',
+      },
+    ],
+    name: 'delegatedDeadline',
+    outputs: [
+      {
+        internalType: 'uint256',
+        name: '',
+        type: 'uint256',
+      },
+    ],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
     inputs: [],
-    name: 'getAllOperators',
+    name: 'operatorsList',
     outputs: [
       {
         internalType: 'address[]',
@@ -262,9 +519,49 @@ export const abi: AbiItem[] = [
   },
   {
     inputs: [],
-    name: 'setAsOperator',
-    outputs: [],
-    stateMutability: 'nonpayable',
+    name: 'owner',
+    outputs: [
+      {
+        internalType: 'address',
+        name: '',
+        type: 'address',
+      },
+    ],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [
+      {
+        internalType: 'address',
+        name: 'user',
+        type: 'address',
+      },
+    ],
+    name: 'userInfo',
+    outputs: [
+      {
+        internalType: 'uint256',
+        name: 'nonce',
+        type: 'uint256',
+      },
+      {
+        internalType: 'bool',
+        name: 'allowed',
+        type: 'bool',
+      },
+      {
+        internalType: 'address',
+        name: 'delegator',
+        type: 'address',
+      },
+      {
+        internalType: 'uint256',
+        name: 'delegatorDeadline',
+        type: 'uint256',
+      },
+    ],
+    stateMutability: 'view',
     type: 'function',
   },
   {
@@ -285,5 +582,9 @@ export const abi: AbiItem[] = [
     ],
     stateMutability: 'view',
     type: 'function',
+  },
+  {
+    stateMutability: 'payable',
+    type: 'receive',
   },
 ];
