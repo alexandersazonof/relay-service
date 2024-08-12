@@ -1,6 +1,12 @@
-import { ForbiddenException, Injectable } from '@nestjs/common';
+import { BadRequestException, InternalServerErrorException, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { AbiItem, Contract, Transaction, TransactionReceipt } from 'web3';
+import {
+  AbiItem,
+  Contract,
+  Transaction,
+  TransactionRevertInstructionError,
+  TransactionReceipt,
+} from 'web3';
 import { Counter } from 'src/common/utils/counter';
 import { AsyncTaskManager, IAsyncTask } from 'src/common/utils/task-manager';
 import { Web3ManagerService } from 'src/common/web3-manager/web3-manager.service';
@@ -18,18 +24,19 @@ export class RelayService {
   private readonly userToTransactionQueue: IUserToTransactionQueue = {};
 
   constructor(
-    public readonly configService: ConfigService,
+    private readonly configService: ConfigService,
     public readonly web3Service: Web3ManagerService,
   ) {
     const contractAddress = this.configService.get<string>('SACRA_RELAY_CONTRACT_ADDRESS');
     this.contract = new this.web3Service.web3.eth.Contract(abi, contractAddress);
+    this.contract.defaultAccount = this.web3Service.defaultAccountAddress;
   }
 
   public async callFromDelegator(callFromDelegatorDto: CallFromDelegatorDto) {
     const userNonce = await this.getUserNonce(callFromDelegatorDto.user);
 
     if (userNonce.toString() !== callFromDelegatorDto.userNonce.toString()) {
-      throw new ForbiddenException(
+      throw new BadRequestException(
         `Nonce is not correct. Should be ${userNonce}. You sent ${callFromDelegatorDto.userNonce}`,
       );
     }
@@ -53,11 +60,10 @@ export class RelayService {
     return this.web3Service.web3.eth.sendTransaction(transactionBody);
   }
 
-  public async callFromOperator(callFromOperatorDto: CallFromOperatorDto) {
+  private async callFromOperator(callFromOperatorDto: CallFromOperatorDto) {
     const userNonce = await this.getUserNonce(callFromOperatorDto.user);
-
     if (userNonce.toString() !== callFromOperatorDto.userNonce.toString()) {
-      throw new ForbiddenException(
+      throw new BadRequestException(
         `Nonce is not correct. Should be ${userNonce}. You sent ${callFromOperatorDto.userNonce}`,
       );
     }
@@ -80,7 +86,18 @@ export class RelayService {
       data: transactionDataABI,
     };
 
-    return this.web3Service.web3.eth.sendTransaction(transactionBody);
+    return this.web3Service.web3.eth.sendTransaction(transactionBody).catch((error) => {
+      if (error instanceof TransactionRevertInstructionError) {
+        if (error.signature) {
+          const errorName = this.web3Service.getContractErrorNameByHex(error.signature);
+          throw new BadRequestException(`Transaction failed with error: ${errorName}`);
+        }
+
+        throw new BadRequestException(`Transaction failed because of incorrect data`);
+      }
+
+      throw new InternalServerErrorException('Error while executing call-from-operator');
+    });
   }
 
   public async executeCallFromOperatorInQueue(callFromOperatorDto: CallFromOperatorDto) {
@@ -91,18 +108,18 @@ export class RelayService {
   }
 
   public CALL_ERC2771_TYPEHASH() {
-    return this.contract.methods.CALL_ERC2771_TYPEHASH().call();
+    return this.contract.methods.CALL_ERC2771_TYPEHASH().call<string>();
   }
 
   public DOMAIN_SEPARATOR() {
-    return this.contract.methods.DOMAIN_SEPARATOR().call();
+    return this.contract.methods.DOMAIN_SEPARATOR().call<string>();
   }
 
   public async getUserNonce(address: string) {
     const userNonce = this.userToNonce[address];
     if (userNonce) return userNonce.count;
+    const nonce = Number(await this.contract.methods.userTxNonce(address).call());
 
-    const nonce = (await this.contract.methods.userTxNonce(address).call()) as number;
     this.userToNonce[address] = new Counter(nonce);
     return this.userToNonce[address].count;
   }
@@ -111,7 +128,6 @@ export class RelayService {
     return async () => {
       const transaction = await this.callFromOperator(callFromOperatorDto);
       this.incrementUserNonce(callFromOperatorDto.user);
-      console.log('Execute call from operator finished successfully');
       return transaction;
     };
   }

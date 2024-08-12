@@ -4,7 +4,7 @@ pragma solidity 0.8.23;
 contract Counter {
     uint256 private value;
 
-    function getValue() external view returns (uint256) {
+    function getValue() public view returns (uint256) {
         return value;
     }
 

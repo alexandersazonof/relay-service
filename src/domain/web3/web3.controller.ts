@@ -9,6 +9,6 @@ export class Web3Controller {
   @Get('/error')
   @HttpCode(HttpStatus.OK)
   getContractErrorNameByHex(@Query() getContractErrorNameDto: GetContractErrorNameDto) {
-    return this.web3Service.getContractErrorNameByHex(getContractErrorNameDto);
+    return this.web3Service.getContractErrorNameByHex(getContractErrorNameDto.code);
   }
 }

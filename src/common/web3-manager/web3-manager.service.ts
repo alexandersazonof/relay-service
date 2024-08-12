@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Web3 from 'web3';
+import { keccak256 } from 'js-sha3';
+import { abiErrors } from './constants/abi-errors';
 
 @Injectable()
 export class Web3ManagerService {
@@ -9,15 +11,29 @@ export class Web3ManagerService {
   public readonly web3: Web3;
 
   constructor(private readonly configService: ConfigService) {
-    this.defaultAccountAddress = configService.get<string>('ACCOUNT_ADDRESS');
-    const masterAccountPrivateKey = configService.get<string>('PRIVATE_KEY');
+    this.defaultAccountAddress = this.configService.get<string>('ACCOUNT_ADDRESS');
+    const masterAccountPrivateKey = this.configService.get<string>('PRIVATE_KEY');
 
-    const chainId = configService.get<string>('CHAIN_ID');
-    const chainRpcUrl = configService.get<string>('CHAIN_RPC_URL');
+    const chainId = this.configService.get<string>('CHAIN_ID');
+    const chainRpcUrl = this.configService.get<string>('CHAIN_RPC_URL');
 
     this.chainId = Number(chainId);
     this.web3 = new Web3(new Web3.providers.HttpProvider(chainRpcUrl));
     this.web3.eth.accounts.wallet.add(masterAccountPrivateKey);
     this.web3.eth.defaultAccount = this.defaultAccountAddress;
+  }
+
+  getContractErrorNameByHex(code: string) {
+    const error = abiErrors.find((abiError) => {
+      if (!abiError.inputs) return false;
+
+      const joinedInputTypes = abiError.inputs.map((input: any) => input.type).join(',');
+      const signature = `${abiError.name}(${joinedInputTypes})`;
+      const hash = '0x' + keccak256(signature).substring(0, 8);
+
+      return hash === code.substring(0, 10);
+    });
+
+    return error.name || 'Unknown error';
   }
 }

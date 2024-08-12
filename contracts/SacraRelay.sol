@@ -1,10 +1,12 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: BUSL-1.1
+
 pragma solidity 0.8.23;
 
 import './openzeppelin/EnumerableSet.sol';
 import './openzeppelin/ECDSA.sol';
 import './interfaces/IAppErrors.sol';
 
+/// @title Sacra relay contract
 contract SacraRelay {
     using EnumerableSet for EnumerableSet.AddressSet;
 
@@ -45,13 +47,24 @@ contract SacraRelay {
     mapping(address => bool) public allowance;
     /// @dev Nonce for each user to prevent tx duplication
     mapping(address => uint256) public userTxNonce;
+    /// @dev User => Delegator. A user can allow another EOA to call any game action on behalf of him
+    mapping(address => address) public delegatedCallers;
+    /// @dev Delegator => Deadline for delegation
+    mapping(address => uint256) public delegatedDeadline;
 
     //endregion ------------------------ Variables
 
+    //region ------------------------ Events
+    event CalledFromOperator(CallWithERC2771 callData);
+    event CalledFromDelegator(CallWithERC2771 callData);
+
+    //endregion ------------------------ Events
+
     //region ------------------------ Constructor
 
-    constructor(address _owner) {
-        owner = _owner;
+    constructor(address owner_) {
+        owner = owner_;
+
         DOMAIN_SEPARATOR = keccak256(
             abi.encode(
                 keccak256(
@@ -66,26 +79,176 @@ contract SacraRelay {
             )
         );
 
-        address myAddress = address(0x70997970C51812dc3A010C7d01b50e0d17dc79C8);
-        _operators.add(myAddress);
-        allowance[myAddress] = true;
-    }
+        address master_account = address(0x70997970C51812dc3A010C7d01b50e0d17dc79C8);
+        _operators.add(master_account);
+        address user_address = address(0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC);
+        allowance[user_address] = true;
+    }   
 
-    function getAllOperators() public view returns (address[] memory) {
+    //endregion ------------------------ Constructor
+
+    //region ------------------------ Views
+
+    /// @dev Get all operators
+    function operatorsList() external view returns (address[] memory) {
         return _operators.values();
     }
 
-    function setAsOperator() public {
-        address myAddress = address(0x70997970C51812dc3A010C7d01b50e0d17dc79C8);
-        _operators.add(myAddress);
+    /// @dev Get user info
+    function userInfo(address user)
+        external
+        view
+        returns (
+            uint256 nonce,
+            bool allowed,
+            address delegator,
+            uint256 delegatorDeadline
+        )
+    {
+        delegator = delegatedCallers[user];
+        return (userTxNonce[user], allowance[user], delegator, delegatedDeadline[delegator]);
     }
 
-    //endregion ------------------------ Constructor
-    function approve() external {
-        address myAddress = address(0x70997970C51812dc3A010C7d01b50e0d17dc79C8);
-        allowance[myAddress] = true;
+    //endregion ------------------------ Views
+
+    //region ------------------------ Owner actions
+
+    /// @dev Change owner of this contract
+    function changeOwner(address newOwner) external {
+        if (msg.sender != owner) revert IAppErrors.SacraRelayNotOwner();
+        owner = newOwner;
     }
 
+    /// @dev Add or remove operator
+    function changeOperator(address operator, bool add) external {
+        if (msg.sender != owner) revert IAppErrors.SacraRelayNotOwner();
+        if (add) {
+            _operators.add(operator);
+        } else {
+            _operators.remove(operator);
+        }
+    }
+
+    //endregion ------------------------ Owner actions
+
+    //region ------------------------ Main logic
+    /// @dev Approve or disapprove operator to call game contract on behalf of users
+    function approve(bool status) external {
+        allowance[msg.sender] = status;
+    }
+
+    /// @dev Allow to call game contract on behalf of user for given EOA.
+    ///      Zero delegator address means that user revoke permission for this EOA.
+    ///      A user can refuel his delegator by sending some ether with this call.
+    function delegate(address delegator) external payable {
+        address oldDelegator = delegatedCallers[msg.sender];
+        delegatedCallers[msg.sender] = delegator;
+
+        delete delegatedDeadline[oldDelegator];
+        delegatedDeadline[delegator] = block.timestamp + DELEGATION_DEADLINE;
+
+        if (msg.value > 0) {
+            payable(delegator).transfer(msg.value);
+        }
+    }
+
+    /// @dev Close delegation for user.
+    ///      Delegator can send back ether to user with this call.
+    function closeDelegation(address user) external payable {
+        if (delegatedCallers[user] != msg.sender) revert IAppErrors.SacraRelayNotDelegator();
+        delete delegatedCallers[user];
+        delete delegatedDeadline[msg.sender];
+
+        if (msg.value > 0) {
+            payable(user).transfer(msg.value);
+        }
+    }
+
+    /// @dev Call from delegator. No user signature required.
+    ///      We assume delegator is under control of user.
+    function callFromDelegator(CallWithERC2771 calldata callInfo) external {
+        if (delegatedCallers[callInfo.user] != msg.sender)
+            revert IAppErrors.SacraRelayNotDelegator();
+        if (callInfo.chainId != block.chainid)
+            revert IAppErrors.SacraRelayInvalidChainId(callInfo.chainId, block.chainid);
+
+        uint256 _userTxNonce = userTxNonce[callInfo.user];
+        if (callInfo.userNonce != _userTxNonce)
+            revert IAppErrors.SacraRelayInvalidNonce(callInfo.userNonce, _userTxNonce);
+        if (callInfo.userDeadline != 0 && callInfo.userDeadline < block.timestamp)
+            revert IAppErrors.SacraRelayDeadline();
+        if (delegatedDeadline[msg.sender] < block.timestamp)
+            revert IAppErrors.SacraRelayDelegationExpired();
+
+        userTxNonce[callInfo.user] = _userTxNonce + 1;
+
+        _revertingContractCall(
+            callInfo.target,
+            _encodeERC2771Context(callInfo.data, callInfo.user),
+            'SacraRelay.DelegatedCall'
+        );
+
+        emit CalledFromDelegator(callInfo);
+    }
+
+    /// @dev Call game contract on behalf of user. Require user signature for every call.
+    function callFromOperator(CallWithERC2771 calldata callInfo, bytes calldata userSignature_)
+        external
+    {
+        if (!_operators.contains(msg.sender)) revert IAppErrors.SacraRelayNotOperator();
+        if (callInfo.chainId != block.chainid)
+            revert IAppErrors.SacraRelayInvalidChainId(callInfo.chainId, block.chainid);
+
+        // a user should allow this contract to call game contracts on behalf of him
+        if (!allowance[callInfo.user]) revert IAppErrors.SacraRelayNotAllowed();
+
+        uint256 _userTxNonce = userTxNonce[callInfo.user];
+        if (callInfo.userNonce != _userTxNonce)
+            revert IAppErrors.SacraRelayInvalidNonce(callInfo.userNonce, _userTxNonce);
+        if (callInfo.userDeadline != 0 && callInfo.userDeadline < block.timestamp)
+            revert IAppErrors.SacraRelayDeadline();
+
+        // Verify user's signature
+        _requireCallERC2771Signature(callInfo, userSignature_);
+
+        userTxNonce[callInfo.user] = _userTxNonce + 1;
+
+        _revertingContractCall(
+            callInfo.target,
+            _encodeERC2771Context(callInfo.data, callInfo.user),
+            'SacraRelay.CallERC2771'
+        );
+
+        emit CalledFromOperator(callInfo);
+    }
+
+    //endregion ------------------------ Main logic
+
+    //region ------------------------ Internal logic
+    /// @dev from GelatoCallUtils
+    function _revertingContractCall(
+        address _contract,
+        bytes memory _data,
+        string memory _errorMsg
+    ) internal returns (bytes memory returnData) {
+        bool success;
+        (success, returnData) = _contract.call(_data);
+
+        // solhint-disable-next-line max-line-length
+        // https://github.com/OpenZeppelin/openzeppelin-contracts-upgradeable/blob/f9b6fc3fdab7aca33a9cfa8837c5cd7f67e176be/contracts/utils/AddressUpgradeable.sol#L177
+        if (success) {
+            if (returnData.length == 0) {
+                // only check isContract if the call was successful and the return data is empty
+                // otherwise we already know that it was a contract
+                if (!_isContract(_contract))
+                    revert IAppErrors.SacraRelayCallToNotContract(_contract, _errorMsg);
+            }
+        } else {
+            _revertWithError(returnData, _errorMsg);
+        }
+    }
+
+    /// @dev NOT SECURE CHECK! Just for more clear error messages
     function _isContract(address account) internal view returns (bool) {
         return account.code.length > 0;
     }
@@ -111,58 +274,13 @@ contract SacraRelay {
         }
     }
 
-    function _encodeERC2771Context(
-        bytes calldata _data,
-        address _msgSender
-    ) internal pure returns (bytes memory) {
+    /// @dev vanilla ERC2771 context encoding
+    function _encodeERC2771Context(bytes calldata _data, address _msgSender)
+        internal
+        pure
+        returns (bytes memory)
+    {
         return abi.encodePacked(_data, _msgSender);
-    }
-
-    function callFromOperator(
-        CallWithERC2771 calldata callInfo,
-        bytes calldata userSignature_
-    ) public {
-        if (!_operators.contains(msg.sender)) revert IAppErrors.SacraRelayNotOperator();
-
-        if (callInfo.chainId != block.chainid)
-            revert IAppErrors.SacraRelayInvalidChainId(callInfo.chainId, block.chainid);
-        // a user should allow this contract to call game contracts on behalf of him
-        if (!allowance[callInfo.user]) revert IAppErrors.SacraRelayNotAllowed();
-        uint256 _userTxNonce = userTxNonce[callInfo.user];
-        if (callInfo.userNonce != _userTxNonce)
-            revert IAppErrors.SacraRelayInvalidNonce(callInfo.userNonce, _userTxNonce);
-        if (callInfo.userDeadline != 0 && callInfo.userDeadline < block.timestamp)
-            revert IAppErrors.SacraRelayDeadline();
-        // Verify user's signature
-        _requireCallERC2771Signature(callInfo, userSignature_);
-        userTxNonce[callInfo.user] = _userTxNonce + 1;
-        _revertingContractCall(
-            callInfo.target,
-            _encodeERC2771Context(callInfo.data, callInfo.user),
-            'SacraRelay.CallERC2771'
-        );
-    }
-
-    function _revertingContractCall(
-        address _contract,
-        bytes memory _data,
-        string memory _errorMsg
-    ) internal returns (bytes memory returnData) {
-        bool success;
-        (success, returnData) = _contract.call(_data);
-
-        // solhint-disable-next-line max-line-length
-        // https://github.com/OpenZeppelin/openzeppelin-contracts-upgradeable/blob/f9b6fc3fdab7aca33a9cfa8837c5cd7f67e176be/contracts/utils/AddressUpgradeable.sol#L177
-        if (success) {
-            if (returnData.length == 0) {
-                // only check isContract if the call was successful and the return data is empty
-                // otherwise we already know that it was a contract
-                if (!_isContract(_contract))
-                    revert IAppErrors.SacraRelayCallToNotContract(_contract, _errorMsg);
-            }
-        } else {
-            _revertWithError(returnData, _errorMsg);
-        }
     }
 
     function _requireCallERC2771Signature(
@@ -182,9 +300,11 @@ contract SacraRelay {
             revert IAppErrors.SacraRelayInvalidSignature();
     }
 
-    function _abiEncodeCallERC2771(
-        CallWithERC2771 calldata callInfo
-    ) internal pure returns (bytes memory) {
+    function _abiEncodeCallERC2771(CallWithERC2771 calldata callInfo)
+        internal
+        pure
+        returns (bytes memory)
+    {
         return
             abi.encode(
                 CALL_ERC2771_TYPEHASH,
@@ -196,4 +316,8 @@ contract SacraRelay {
                 callInfo.userDeadline
             );
     }
+
+    //endregion ------------------------ Internal logic
+
+    receive() external payable {}
 }
