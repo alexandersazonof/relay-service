@@ -7,7 +7,6 @@ export interface IEnvConfig {
   SACRA_RELAY_CONTRACT_ADDRESS: string;
 
   /* MASTER ACCOUNT */
-  ACCOUNT_ADDRESS: string;
   PRIVATE_KEY: string;
 
   /* SERVER */

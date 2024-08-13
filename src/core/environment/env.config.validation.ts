@@ -12,7 +12,6 @@ export const EnvConfigValidation: Joi.ObjectSchema<IEnvConfig> = Joi.object({
     .required(),
 
   /* MASTER ACCOUNT */
-  ACCOUNT_ADDRESS: Joi.string().required(),
   PRIVATE_KEY: Joi.string().required(),
 
   /* SERVER */
