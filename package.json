@@ -21,8 +21,9 @@
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e:prepare": "npx hardhat run ./test/utils/test-prepare.ts --network localhost",
-    "test:e2e": "node --env-file=.env.test node_modules/.bin/jest --config ./test/jest-e2e.json",
-    "test:e2e:relay": "node --env-file=.env.test node_modules/.bin/jest --config ./test/jest-e2e.json -t 'RelayController'"
+    "test:e2e:run": "node --env-file=.env.test node_modules/.bin/jest --config ./test/jest-e2e.json",
+    "test:e2e:relay": "node --env-file=.env.test node_modules/.bin/jest --config ./test/jest-e2e.json -t 'RelayController'",
+    "test:e2e": "npm run hardhat:compile && npm run test:e2e:prepare && npm run test:e2e:run"
   },
   "dependencies": {
     "@nestjs/common": "^10.0.0",

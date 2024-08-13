@@ -4,7 +4,6 @@ interface EnvVariables {
   CHAIN_ID?: string;
   CHAIN_RPC_URL?: string;
   SACRA_RELAY_CONTRACT_ADDRESS?: string;
-  ACCOUNT_ADDRESS?: string;
   PRIVATE_KEY?: string;
   PORT?: string;
   USER_ADDRESS?: string;

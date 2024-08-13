@@ -30,34 +30,18 @@ Before running tests related to the local blockchain, you need to start Hardhat:
 
 ```bash
 # run hardhat node
-$ yarn run hardhat
-```
-
-```bash
-# compile contracts
-$ yarn run compile
-```
-
-```bash
-# deploy contracts (should log addresses)
-$ yarn run deploy
+$ yarn run hardhat:run
 ```
 
 ## Test
 
 For e2e tests will be used environment variables from **env.test**. 
-Some variables in this file need to be changed as needed. For example, contract addresses need to be changed after each deployment.
 
 Also, your Node.JS version must have native support for reading from .env files (version must be **20.6.0** or higher)
 
-### Relay (e2e)
+### Run e2e tests
 
-```bash
-# e2e tests (relay only)
-$ yarn run test:e2e:relay
-```
-
-### All tests (e2e)
+The following command runs smart contract compilation, deploys contracts, updates .env.test and runs all e2e tests.
 
 ```bash
 # e2e tests
