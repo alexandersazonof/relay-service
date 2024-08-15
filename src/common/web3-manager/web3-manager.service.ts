@@ -24,6 +24,10 @@ export class Web3ManagerService {
     this.web3.eth.defaultAccount = this.defaultAccountAddress;
   }
 
+  async isContract(address: string) {
+    return (await this.web3.eth.getCode(address)) !== '0x';
+  }
+
   getContractErrorNameByHex(code: string) {
     const error = abiErrors.find((abiError) => {
       if (!abiError.inputs) return false;

@@ -1,4 +1,9 @@
-import { BadRequestException, InternalServerErrorException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  InternalServerErrorException,
+  Injectable,
+  OnModuleInit,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   AbiItem,
@@ -18,7 +23,7 @@ import { IUserToTransactionQueue } from './interfaces/user-to-transaction-queue.
 import { abi } from './constants/abi';
 
 @Injectable()
-export class RelayService {
+export class RelayService implements OnModuleInit {
   private readonly contract: Contract<AbiItem[]>;
   private readonly userToNonce: IUserToNonce = {};
   private readonly userToTransactionQueue: IUserToTransactionQueue = {};
@@ -32,6 +37,14 @@ export class RelayService {
     this.contractAddress = this.configService.get<string>('SACRA_RELAY_CONTRACT_ADDRESS');
     this.contract = new this.web3Service.web3.eth.Contract(abi, this.contractAddress);
     this.contract.defaultAccount = this.web3Service.defaultAccountAddress;
+  }
+
+  async onModuleInit() {
+    if (!(await this.web3Service.isContract(this.contractAddress))) {
+      throw new InternalServerErrorException(
+        `Address ${this.contractAddress} is not a relay contract`,
+      );
+    }
   }
 
   public async callFromDelegator(callFromDelegatorDto: CallFromDelegatorDto) {
