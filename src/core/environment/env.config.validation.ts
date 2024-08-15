@@ -1,5 +1,6 @@
 import * as Joi from 'joi';
 import { IEnvConfig } from './env.config.interface';
+
 export const EnvConfigValidation: Joi.ObjectSchema<IEnvConfig> = Joi.object({
   /* BLOCKCHAIN DATA */
   CHAIN_ID: Joi.number().required(),
@@ -12,7 +13,10 @@ export const EnvConfigValidation: Joi.ObjectSchema<IEnvConfig> = Joi.object({
     .required(),
 
   /* MASTER ACCOUNT */
-  PRIVATE_KEY: Joi.string().required(),
+  PRIVATE_KEY: Joi.string()
+    .pattern(/^0x[a-fA-F0-9]{64}$/)
+    .message('Invalid private key')
+    .required(),
 
   /* SERVER */
   PORT: Joi.number().required(),

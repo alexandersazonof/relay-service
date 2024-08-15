@@ -8,6 +8,11 @@ import { GetUserNonceDto } from './dto/get-user-nonce.dto';
 export class RelayController {
   constructor(private readonly relayService: RelayService) {}
 
+  @Get()
+  getContractAddress() {
+    return this.relayService.contractAddress;
+  }
+
   @Post('/call-from-delegator')
   @HttpCode(HttpStatus.OK)
   callFromDelegator(@Body() callFromDelegatorDto: CallFromDelegatorDto) {

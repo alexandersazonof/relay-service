@@ -23,12 +23,14 @@ export class RelayService {
   private readonly userToNonce: IUserToNonce = {};
   private readonly userToTransactionQueue: IUserToTransactionQueue = {};
 
+  readonly contractAddress: string;
+
   constructor(
     private readonly configService: ConfigService,
     public readonly web3Service: Web3ManagerService,
   ) {
-    const contractAddress = this.configService.get<string>('SACRA_RELAY_CONTRACT_ADDRESS');
-    this.contract = new this.web3Service.web3.eth.Contract(abi, contractAddress);
+    this.contractAddress = this.configService.get<string>('SACRA_RELAY_CONTRACT_ADDRESS');
+    this.contract = new this.web3Service.web3.eth.Contract(abi, this.contractAddress);
     this.contract.defaultAccount = this.web3Service.defaultAccountAddress;
   }
 
